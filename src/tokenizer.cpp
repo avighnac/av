@@ -9,8 +9,8 @@ namespace av {
 
 bool is_keyword(std::string s) {
   static std::array<std::string, __count_TokenType> a({
-    "int8", "int16", "int32", "int64", "int8*",
-    "int16*", "int32*", "int64*", "return"
+    "int8", "int16", "int32", "int64", "void", "int8*",
+    "int16*", "int32*", "int64*", "void*", "return"
   });
   return find(a.begin(), a.end(), s) != a.end();
 }
@@ -19,22 +19,23 @@ std::string to_string(TokenType token) {
   static const std::array<std::string, int(av::__count_TokenType)> a({
     "Datatype", "Identifier", "Number", "Equal", "Semicolon",
     "OpenParen", "CloseParen", "OpenBrace", "CloseBrace",
-    "Amp", "Bar", "Comma", "Underscore", "LogicalAnd", "LogicalOr", "Return"
+    "Amp", "Bar", "Comma", "Star", "Underscore", "LogicalAnd", "LogicalOr",
+    "Return"
   });
   return a[int(token)];
 }
 std::ostream &operator<<(std::ostream &os, const TokenType &token) { return os << to_string(token); }
 
-char tokenizer::peek() { return ptr == buf.length() ? 0 : buf[ptr]; }
-char tokenizer::advance() { return buf[ptr++]; }
-void tokenizer::skip_space() { while (std::isspace(peek())) { advance(); } }
+char tokenizer::peek_(int adv) { return ptr_ + adv >= buf.length() ? 0 : buf[ptr_ + adv]; }
+char tokenizer::advance() { return buf[ptr_++]; }
+void tokenizer::skip_space() { while (std::isspace(peek_())) { advance(); } }
 
 std::string tokenizer::get_word() {
   std::string ret;
-  while (std::isalnum(peek()) || peek() == '_') {
+  while (std::isalnum(peek_()) || peek_() == '_') {
     ret.push_back(advance());
   }
-  if (peek() == '*') {
+  if (peek_() == '*') {
     ret.push_back(advance());
   }
   return ret;
@@ -42,98 +43,136 @@ std::string tokenizer::get_word() {
 
 std::string tokenizer::get_number() {
   std::string ret;
-  while (std::isdigit(peek())) {
+  ret.push_back(advance());
+  if (ret.back() != '-' && !std::isdigit(ret.back())) {
+    throw std::runtime_error("get_number() called but first character was " + std::string(1, ret.back()));
+  }
+  while (std::isdigit(peek_())) {
     ret.push_back(advance());
   }
   return ret;
 }
 
-Token tokenizer::get() {
+Token tokenizer::get_() {
   skip_space();
   Token token;
-  char c = peek();
+  char c = peek_();
 
   if (std::isalpha(c)) {
     if (!is_keyword(token.token = get_word())) {
-      token.type = Identifier;
+      token.type = Tk_Identifier;
       return token;
     }
     if (token.token == "return") {
       token.token.clear();
-      token.type = Return;
+      token.type = Tk_Return;
       return token;
     }
-    token.type = Datatype; // right now the only keywords are types
+    token.type = Tk_Type; // right now the only keywords are types
     return token;
   }
 
-  if (std::isdigit(c)) {
-    token.type = Number;
+  if (std::isdigit(c) || c == '-' && std::isdigit(peek_(1))) {
+    token.type = Tk_Number;
     token.token = get_number();
     return token;
   }
 
   if (c == '=') {
     advance();
-    token.type = Equal;
+    token.type = Tk_Equal;
     return token;
   }
   if (c == ';') {
     advance();
-    token.type = Semicolon;
+    token.type = Tk_Semicolon;
     return token;
   }
   if (c == '(') {
     advance();
-    token.type = OpenParen;
+    token.type = Tk_OpenParen;
     return token;
   }
   if (c == ')') {
     advance();
-    token.type = CloseParen;
+    token.type = Tk_CloseParen;
     return token;
   }
   if (c == '{') {
     advance();
-    token.type = OpenBrace;
+    token.type = Tk_OpenBrace;
     return token;
   }
   if (c == '}') {
     advance();
-    token.type = CloseBrace;
+    token.type = Tk_CloseBrace;
     return token;
   }
   if (c == '_') {
     advance();
-    token.type = Underscore;
+    token.type = Tk_Underscore;
     return token;
   }
   if (c == ',') {
     advance();
-    token.type = Comma;
+    token.type = Tk_Comma;
+    return token;
+  }
+  if (c == '*') {
+    advance();
+    token.type = Tk_Star;
     return token;
   }
 
   if (c == '&') {
     advance();
-    if (peek() == '&') {
+    if (peek_() == '&') {
       advance();
-      token.type = LogicalAnd;
+      token.type = Tk_LogicalAnd;
+    } else {
+      token.type = Tk_Amp;
     }
-    token.type = Amp;
     return token;
   }
   if (c == '|') {
     advance();
-    if (peek() == '|') {
+    if (peek_() == '|') {
       advance();
-      token.type = LogicalOr;
+      token.type = Tk_LogicalOr;
+    } else {
+      token.type = Tk_Bar;
     }
-    token.type = Bar;
     return token;
   }
 
   throw std::runtime_error("Syntax error");
+}
+
+bool tokenizer::peek() { return ptr < tokens.size(); }
+Token tokenizer::get() { return tokens[ptr++]; }
+// template <typename F>
+// bool tokenizer::has(const F &&f) {
+//   return std::find_if(tokens.begin() + ptr, tokens.end(), f) != tokens.end();
+// }
+
+void tokenizer::push(const Token &t) {
+  tokens.push_back(t);
+}
+
+void tokenizer::pop() {
+  tokens.pop_back();
+}
+
+std::size_t tokenizer::size() const {
+  return tokens.size() - ptr;
+}
+
+Token &tokenizer::operator[](std::size_t i) {
+  return tokens[i + ptr];
+}
+
+void tokenizer::clear() {
+  *this = tokenizer();
 }
 
 }

@@ -1,15 +1,22 @@
 #include "ast.hpp"
+#include "parser.hpp"
 #include "tokenizer.hpp"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <vector>
 
-int main(int argc, char **argv) {
+int main(int argc, char **_argv) {
+  std::vector<std::string> argv(argc);
+  for (int i = 0; i < argc; ++i) {
+    argv[i] = _argv[i];
+  }
+  
   if (argc == 1) {
     std::cout << "Usage: " << argv[0] << " <filename.av>\n";
     std::cout << "Options:\n";
     std::cout << "  --tokenize: Tokenizes the file\n";
+    std::cout << "  --ast: Prints the AST\n";
     return 0;
   }
 
@@ -28,11 +35,7 @@ int main(int argc, char **argv) {
   }
   f.close();
 
-  std::vector<std::string> args(argc);
-  for (int i = 0; i < argc; ++i) {
-    args[i] = argv[i];
-  }
-  if (std::find(args.begin(), args.end(), "--tokenize") != args.end()) {
+  if (std::find(argv.begin(), argv.end(), "--tokenize") != argv.end()) {
     av::tokenizer tk(code);
     while (tk.peek()) {
       av::Token token = tk.get();
@@ -48,7 +51,11 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  av::Node *root = new av::Root();
-  std::cout << *root;
-  delete root;
+  if (std::find(argv.begin(), argv.end(), "--ast") != argv.end()) {
+    av::tokenizer tk(code);
+    av::Node *root = av::parse(tk);
+    std::cout << *root;
+    delete root;
+    return 0;
+  }
 }

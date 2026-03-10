@@ -5,6 +5,7 @@
 #include <string>
 #include <ostream>
 #include <concepts>
+#include "tokenizer.hpp"
 
 namespace av {
 
@@ -18,11 +19,14 @@ enum Type {
   Int32Ptr,
   Int64Ptr,
   VoidPtr,
+  Void,
   __count_Type
 };
 
+Type type_from_string(const std::string &s);
+
 enum NodeType {
-  root,
+  block,
   functionDecl,
   functionBody,
   variableDecl,
@@ -32,9 +36,11 @@ enum NodeType {
   int32Literal,
   int64Literal,
   addressOf,
+  dereference,
   functionCall,
   value,
   identifier,
+  returnNode,
   __count_NodeType
 };
 
@@ -52,15 +58,14 @@ struct Node {
   Node(NodeType type) : type(type) {}
   virtual ~Node() = default;
   std::ostream &print(std::ostream &os, int dep = 0) const;
-  void parse(std::string code);
 };
 
 std::ostream &operator<<(std::ostream &os, const Node &t);
 
-struct Root : Node {
+struct Block : Node {
   std::vector<Node *> stmts;
-  Root() : Node(root) {}
-  ~Root() {
+  Block() : Node(block) {}
+  ~Block() {
     for (Node *&i : stmts) {
       delete i;
     }
@@ -77,12 +82,10 @@ struct FunctionDecl : Node {
 struct FunctionBody : Node {
   std::string Name;
   std::vector<std::string> Params;
-  std::vector<Node *> stmts;
+  Node *Block;
   FunctionBody() : Node(functionBody) {}
   ~FunctionBody() {
-    for (Node *&i : stmts) {
-      delete i;
-    }
+    delete Block;
   }
 };
 
@@ -93,10 +96,11 @@ struct VariableDecl : Node {
 };
 
 struct Assign : Node {
-  std::string To;
+  Node *To;
   Node *Value;
-  Assign() : Node(assign), Value(nullptr) {}
+  Assign() : Node(assign), To(nullptr), Value(nullptr) {}
   ~Assign() {
+    delete To;
     delete Value;
   }
 };
@@ -104,6 +108,11 @@ struct Assign : Node {
 struct AddressOf : Node {
   std::string Name;
   AddressOf() : Node(addressOf) {}
+};
+
+struct Dereference : Node {
+  std::string Name;
+  Dereference() : Node(dereference) {}
 };
 
 struct FunctionCall : Node {
@@ -140,6 +149,14 @@ struct Int32Literal : Node {
 struct Int64Literal : Node {
   int64_t Value;
   Int64Literal() : Node(int64Literal) {}
+};
+
+struct Return : Node {
+  Node *Value;
+  Return() : Node(returnNode) {}
+  ~Return() {
+    delete Value;
+  }
 };
 
 } // namespace av
