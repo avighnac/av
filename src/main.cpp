@@ -95,10 +95,10 @@ int main(int argc, char **_argv) {
     std::cout << "[warning] nasm is not installed, stopping at the assembly emission step\n";
   } else {
     std::system(("nasm -f elf64 " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
-  }
-  if (!command_exists("ld")) {
-    std::cout << "[warning] ld is not installed, stopping at the object linking step\n";
-  } else {
-    std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+    if (!command_exists("ld")) {
+      std::cout << "[warning] ld is not installed, stopping at the object linking step\n";
+    } else {
+      std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+    }
   }
 }

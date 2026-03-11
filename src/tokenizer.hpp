@@ -53,7 +53,10 @@ private:
   std::size_t ptr;
 public:
   tokenizer() : ptr_(0), ptr(0) {}
-  tokenizer(std::string buf) : buf(buf), ptr_(0), ptr(0) {
+  tokenizer(std::string buf_) : buf(buf_), ptr_(0), ptr(0) {
+    while (!buf.empty() && std::isspace(buf.back())) {
+      buf.pop_back();
+    }
     while (peek_()) {
       tokens.push_back(get_());
     }
