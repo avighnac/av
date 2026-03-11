@@ -2,6 +2,7 @@
 #include "gen.hpp"
 #include "parser.hpp"
 #include "tokenizer.hpp"
+#include "desugar.hpp"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -69,6 +70,7 @@ int main(int argc, char **_argv) {
   if (std::find(argv.begin(), argv.end(), "--s") != argv.end()) {
     av::tokenizer tk(code);
     av::Node *root = av::parse(tk);
+    av::desugar(root);
     std::cout << "section .text\n";
     av::generate(root, std::cout);
     std::cout << "global _start\n";
@@ -77,11 +79,13 @@ int main(int argc, char **_argv) {
     std::cout << "  mov edi, eax\n";
     std::cout << "  mov eax, 60\n";
     std::cout << "  syscall\n";
+    return 0;
   }
 
   std::ofstream os(argv[1] + ".asm");
   av::tokenizer tk(code);
   av::Node *root = av::parse(tk);
+  av::desugar(root);
   os << "section .text\n";
   av::generate(root, os);
   os << "global _start\n";

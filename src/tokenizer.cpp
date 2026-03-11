@@ -148,27 +148,31 @@ Token tokenizer::get_() {
   throw std::runtime_error("Syntax error");
 }
 
-bool tokenizer::peek() { return ptr < tokens.size(); }
-Token tokenizer::get() { return tokens[ptr++]; }
-// template <typename F>
-// bool tokenizer::has(const F &&f) {
-//   return std::find_if(tokens.begin() + ptr, tokens.end(), f) != tokens.end();
-// }
+bool tokenizer::peek() { return !tokens.empty(); }
+Token tokenizer::get() {
+  Token token = tokens[0];
+  tokens.pop_front();
+  return token;
+}
 
-void tokenizer::push(const Token &t) {
+void tokenizer::push_back(const Token &t) {
   tokens.push_back(t);
 }
 
-void tokenizer::pop() {
+void tokenizer::push_front(const Token &t) {
+  tokens.push_front(t);
+}
+
+void tokenizer::pop_back() {
   tokens.pop_back();
 }
 
 std::size_t tokenizer::size() const {
-  return tokens.size() - ptr;
+  return tokens.size();
 }
 
 Token &tokenizer::operator[](std::size_t i) {
-  return tokens[i + ptr];
+  return tokens[i];
 }
 
 void tokenizer::clear() {

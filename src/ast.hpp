@@ -81,6 +81,8 @@ struct FunctionDecl : Node {
 
 struct FunctionBody : Node {
   std::string Name;
+  Type ReturnType;
+  std::vector<Type> ParamTypes;
   std::vector<std::string> Params;
   Node *Body;
   FunctionBody() : Node(functionBody) {}

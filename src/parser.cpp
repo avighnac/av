@@ -1,9 +1,9 @@
 #include "parser.hpp"
 #include "ast.hpp"
 #include "tokenizer.hpp"
-#include <stdexcept>
-#include <limits>
 #include <cstdint>
+#include <limits>
+#include <stdexcept>
 
 namespace av {
 
@@ -23,24 +23,34 @@ Node *parse(tokenizer &tk) {
     tokenizer stmt;
     while (tk.peek()) {
       Token token = tk.get();
-      stmt.push(token);
+      stmt.push_back(token);
       bal += (token.type == Tk_OpenBrace) - (token.type == Tk_CloseBrace);
       if ((token.type == Tk_Semicolon || token.type == Tk_CloseBrace) && bal == 0) {
         if (token.type == Tk_Semicolon) {
-          stmt.pop();
+          stmt.pop_back();
         }
         // for functions, keep everything intact, but for pure blocks we do wanna pop the first { and last }
         if (stmt[0].type == Tk_OpenBrace && stmt[stmt.size() - 1].type == Tk_CloseBrace) {
           stmt.get();
-          stmt.pop();
+          stmt.pop_back();
         }
+        // desugar `int32 x = 5`
+        if (stmt.size() >= 3 && stmt[0].type == Tk_Type && stmt[1].type == Tk_Identifier && stmt[2].type == Tk_Equal) {
+          tokenizer left;
+          left.push_back(stmt.get());
+          Token token = stmt.get();
+          left.push_back(token);
+          t->stmts.push_back(parse(left));
+          stmt.push_front(token);
+        }
+        // desugar `int32 main() {`
         t->stmts.push_back(parse(stmt));
         stmt.clear();
       }
     }
     return t;
   }
-  // variabledecl: int32 x;
+  // variabledecl: int32 x
   if (tk.size() == 2 && tk[0].type == Tk_Type && tk[1].type == Tk_Identifier) {
     VariableDecl *t = new VariableDecl();
     t->VariableType = type_from_string(tk[0].token);
@@ -94,9 +104,10 @@ Node *parse(tokenizer &tk) {
     if (tk[tk.size() - 1].type != Tk_CloseBrace) {
       throw std::runtime_error("No matching } found for { in function " + tk[2].token);
     }
-    tk.pop();
+    tk.pop_back();
     FunctionBody *t = new FunctionBody;
     t->Name = tk[1].token;
+    t->ReturnType = type_from_string(tk[0].token);
     bal = 1;
     tk.get();
     tk.get();
@@ -105,6 +116,12 @@ Node *parse(tokenizer &tk) {
     while (bal != 0) {
       Token token = tk.get();
       bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
+      if (loc == 0 && token.type != Tk_CloseParen) {
+        if (token.type != Tk_Type) {
+          throw std::runtime_error(token.token + " is not a type");
+        }
+        t->ParamTypes.push_back(type_from_string(token.token));
+      }
       if (loc == 1) {
         if (token.type != Tk_Identifier) {
           throw std::runtime_error(token.token + " is not an identifier");
@@ -192,10 +209,10 @@ Node *parse(tokenizer &tk) {
   if (has_equal != -1) {
     tokenizer left, right;
     for (int i = 0; i < has_equal; ++i) {
-      left.push(tk[i]);
+      left.push_back(tk[i]);
     }
     for (int i = has_equal + 1; i < int(tk.size()); ++i) {
-      right.push(tk[i]);
+      right.push_back(tk[i]);
     }
     Assign *t = new Assign();
     t->To = parse(left);
@@ -213,14 +230,14 @@ Node *parse(tokenizer &tk) {
     while (bal != 0) {
       Token token = tk.get();
       bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
-      param.push(token);
+      param.push_back(token);
       if (token.type == Tk_Comma) {
-        param.pop();
+        param.pop_back();
         t->Params.push_back(parse(param));
         param.clear();
       }
     }
-    param.pop();
+    param.pop_back();
     t->Params.push_back(parse(param));
     return t;
   }

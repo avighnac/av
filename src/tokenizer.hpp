@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <vector>
+#include <deque>
 
 namespace av {
 
@@ -49,11 +49,10 @@ private:
 
   Token get_();
 
-  std::vector<Token> tokens;
-  std::size_t ptr;
+  std::deque<Token> tokens;
 public:
-  tokenizer() : ptr_(0), ptr(0) {}
-  tokenizer(std::string buf_) : buf(buf_), ptr_(0), ptr(0) {
+  tokenizer() : ptr_(0) {}
+  tokenizer(std::string buf_) : buf(buf_), ptr_(0) {
     while (!buf.empty() && std::isspace(buf.back())) {
       buf.pop_back();
     }
@@ -66,8 +65,9 @@ public:
   Token get();
   // template <typename F>
   // bool has(const F &&f);
-  void push(const Token &t);
-  void pop();
+  void push_back(const Token &t);
+  void push_front(const Token &t);
+  void pop_back();
   std::size_t size() const;
   Token &operator[](std::size_t i);
   void clear();

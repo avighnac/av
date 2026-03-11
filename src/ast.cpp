@@ -64,6 +64,8 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
   case functionBody: {
     FunctionBody *t = (FunctionBody *)this;
     os << tab << "Name: " << t->Name << '\n';
+    os << tab << "ReturnType: " << t->ReturnType << '\n';
+    os << tab << "ParamTypes: " << t->ParamTypes << '\n';
     os << tab << "Params: " << t->Params << '\n';
     os << tab << "Body:\n";
     t->Body->print(os, dep + 1);
@@ -98,7 +100,7 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
     os << tab << "Name: " << ((Identifier *)this)->Name << '\n';
   } break;
   case int8Literal: {
-    os << tab << "Value: " << ((Int8Literal *)this)->Value << '\n';
+    os << tab << "Value: " << int(((Int8Literal *)this)->Value) << '\n';
   } break;
   case int16Literal: {
     os << tab << "Value: " << ((Int16Literal *)this)->Value << '\n';
