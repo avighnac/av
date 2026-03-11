@@ -19,9 +19,6 @@ int main(int argc, char **_argv) {
     argv[i] = _argv[i];
   }
 
-  argc = 2;
-  argv = {"./test", "/home/avighna/work/av/build/src/test.av"}
-
   if (argc == 1) {
     std::cout << "Usage: " << argv[0] << " <filename.av>\n";
     std::cout << "Options:\n";

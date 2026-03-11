@@ -55,6 +55,7 @@ enum NodeType {
   div,
   modulo,
   ifNode,
+  whileNode,
   __count_NodeType
 };
 
@@ -246,6 +247,16 @@ struct If : Node {
   Node *Body;
   If() : Cond(nullptr), Body(nullptr), Node(ifNode) {}
   ~If() {
+    delete Cond;
+    delete Body;
+  }
+};
+
+struct While : Node {
+  Node *Cond;
+  Node *Body;
+  While() : Cond(nullptr), Body(nullptr), Node(whileNode) {}
+  ~While() {
     delete Cond;
     delete Body;
   }

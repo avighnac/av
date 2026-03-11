@@ -11,7 +11,8 @@ namespace av {
 bool is_keyword(std::string s) {
   static std::array<std::string, __count_TokenType> a({
     "int8", "int16", "int32", "int64", "void", "int8*",
-    "int16*", "int32*", "int64*", "void*", "return", "if"
+    "int16*", "int32*", "int64*", "void*", "return", "if",
+    "while"
   });
   return find(a.begin(), a.end(), s) != a.end();
 }
@@ -23,7 +24,7 @@ std::string to_string(TokenType token) {
     "Amp", "Bar", "Comma", "Star", "Underscore", "LogicalAnd", "LogicalOr",
     "Return", "Equal", "Less", "Greater", "LessEqual", "GreaterEqual",
     "ShiftLeft", "ShiftRight", "Plus", "Minus", "Div", "Percent", "PlusPlus",
-    "MinusMinus", "If"
+    "MinusMinus", "If", "While"
   });
   return a[int(token)];
 }
@@ -79,6 +80,11 @@ Token tokenizer::get_() {
     if (token.token == "if") {
       token.token.clear();
       token.type = Tk_If;
+      return token;
+    }
+    if (token.token == "while") {
+      token.token.clear();
+      token.type = Tk_While;
       return token;
     }
     token.type = Tk_Type; // right now the only keywords are types

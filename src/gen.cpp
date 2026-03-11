@@ -212,6 +212,7 @@ void generate(Node *t, std::ostream &os) {
       int cur_size = 0;
       for (int i = 0; i < std::min(int(u->Params.size()), 6); ++i) {
         cur_size += memory_needed(v->ParamTypes[i]);
+        memory += memory_needed(v->ParamTypes[i]);
         os << "  mov " << asm_keyword_for(v->ParamTypes[i])
            << "[rbp-" << cur_size << "], " << get_register(registers[i], v->ParamTypes[i]) << '\n';
         vars[u->Params[i]] = v->ParamTypes[i];
@@ -220,11 +221,14 @@ void generate(Node *t, std::ostream &os) {
       // stack based
       for (int i = 6; i < int(u->Params.size()); ++i) {
         cur_size += memory_needed(v->ParamTypes[i]);
+        memory += memory_needed(v->ParamTypes[i]);
         // again works because alignment
         handle_mov("rax", v->ParamTypes[i]);
         os << ", [rsp+" << 8 * (i - 5) << "]\n";
         os << "  mov " << asm_keyword_for(v->ParamTypes[i])
            << "[rbp-" << cur_size << "], rax\n";
+        vars[u->Params[i]] = v->ParamTypes[i];
+        var_offset[u->Params[i]] = cur_size;
       }
       os << "  sub rsp, " << b << "\n";
       self(self, u->Body);
@@ -429,6 +433,18 @@ void generate(Node *t, std::ostream &os) {
       int cnt = lbl_cnt++;
       os << "  jz .after_L" << cnt << '\n';
       self(self, u->Body);
+      os << ".after_L" << cnt << ":\n";
+    } break;
+    case whileNode: {
+      While *u = (While *)t;
+      self(self, u->Cond);
+      int cnt = lbl_cnt++;
+      os << "  jz .after_L" << cnt << '\n';
+      os << ".begin_L" << cnt << ":\n";
+      self(self, u->Body);
+      self(self, u->Cond);
+      os << "  cmp rax, 0\n";
+      os << "  jnz .begin_L" << cnt << '\n';
       os << ".after_L" << cnt << ":\n";
     } break;
     default: {

@@ -10,7 +10,8 @@ std::string av::to_string(av::NodeType type) {
     "Int64Literal", "AddressOf", "Dereference", "FunctionCall",
     "Identifier", "Return", "Equal", "Less", "Greater",
     "LessEqual", "GreaterEqual", "ShiftLeft", "ShiftRight",
-    "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo"
+    "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo",
+    "If", "While"
   });
   return a[int(type)];
 }
@@ -138,6 +139,20 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
   case unaryMinus: {
     os << tab << "To:\n";
     ((UnaryMinus *)this)->To->print(os, dep + 1);
+  } break;
+  case ifNode: {
+    If *t = (If *)this;
+    os << tab << "Cond:\n";
+    t->Cond->print(os, dep + 1);
+    os << tab << "Body:\n";
+    t->Body->print(os, dep + 1);
+  } break;
+  case whileNode: {
+    While *t = (While *)this;
+    os << tab << "Cond:\n";
+    t->Cond->print(os, dep + 1);
+    os << tab << "Body:\n";
+    t->Body->print(os, dep + 1);
   } break;
   }
   return os;

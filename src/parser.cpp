@@ -234,6 +234,28 @@ Node *_parse(tokenizer &tk) {
     t->Body = _parse(tk);
     return t;
   }
+  // while
+  if (tk.size() >= 1 && tk[0].type == Tk_While) {
+    if (tk.size() == 1 || tk[1].type != Tk_OpenParen) {
+      throw std::runtime_error("Expected a statement after 'while'");
+    }
+    int bal = 1;
+    tk.get();
+    tk.get();
+    tokenizer cond;
+    while (bal != 0) {
+      Token token = tk.get();
+      bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
+      cond.push_back(token);
+    }
+    cond.pop_back();
+    While *t = new While();
+    t->Cond = _parse(cond);
+    tk.get();
+    tk.pop_back();
+    t->Body = _parse(tk);
+    return t;
+  }
   // unaryMinus
   if (tk.size() >= 1 && tk[0].type == Tk_Minus) {
     UnaryMinus *t = new UnaryMinus();
@@ -283,7 +305,7 @@ Node *_parse(tokenizer &tk) {
     param.pop_back();
     if (param.size() != 0) {
       t->Params.push_back(_parse(param));
-    } 
+    }
     return t;
   }
   // identifier

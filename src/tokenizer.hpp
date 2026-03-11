@@ -37,6 +37,7 @@ enum TokenType {
   Tk_PlusPlus,
   Tk_MinusMinus,
   Tk_If,
+  Tk_While,
   __count_TokenType
 };
 
