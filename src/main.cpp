@@ -7,6 +7,11 @@
 #include <iostream>
 #include <vector>
 
+bool command_exists(const std::string& cmd) {
+  std::string test = "command -v " + cmd + " > /dev/null 2>&1";
+  return std::system(test.c_str()) == 0;
+}
+
 int main(int argc, char **_argv) {
   std::vector<std::string> argv(argc);
   for (int i = 0; i < argc; ++i) {
@@ -86,7 +91,14 @@ int main(int argc, char **_argv) {
   os << "  syscall\n";
   av::generate(root, os);
 
-  // now just write nasm + ld blindly
-  std::system(("nasm -f elf64 " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
-  std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+  if (!command_exists("nasm")) {
+    std::cout << "[warning] nasm is not installed, stopping at the assembly emission step\n";
+  } else {
+    std::system(("nasm -f elf64 " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
+  }
+  if (!command_exists("ld")) {
+    std::cout << "[warning] ld is not installed, stopping at the object linking step\n";
+  } else {
+    std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+  }
 }

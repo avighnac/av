@@ -5,6 +5,7 @@
 #include <string>
 #include <ostream>
 #include <concepts>
+#include <cstdint>
 #include "tokenizer.hpp"
 
 namespace av {
