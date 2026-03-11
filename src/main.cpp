@@ -90,6 +90,7 @@ int main(int argc, char **_argv) {
   os << "  mov eax, 60\n";
   os << "  syscall\n";
   av::generate(root, os);
+  os.close();
 
   if (!command_exists("nasm")) {
     std::cout << "[warning] nasm is not installed, stopping at the assembly emission step\n";
