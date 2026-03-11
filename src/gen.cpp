@@ -112,7 +112,7 @@ bool is_intrinsic(const std::string &s) {
 
 void generate(Node *t, std::ostream &os) {
   std::map<std::string, std::pair<FunctionDecl *, FunctionBody *>> funcs;
-  std::map<std::string, VariableDecl *> vars;
+  std::map<std::string, Type> vars;
   std::map<std::string, std::string> func_label;
   std::map<std::string, int> var_offset;
 
@@ -123,21 +123,13 @@ void generate(Node *t, std::ostream &os) {
 
   // make yourself clean up when you go out of scope
   // so that's end of Block only
-  std::string prefix = "__av__", cur_func;
-  std::vector<int> prefix_sizes;
+  std::string cur_func;
   std::vector<std::string> used_intrinsics;
-  auto push_prefix = [&](const std::string &s) {
-    prefix_sizes.push_back(int(s.length()));
-    prefix += s;
-  };
-  auto pop_prefix = [&]() {
-    for (int i = 0; i < prefix_sizes.back(); ++i) {
-      prefix.pop_back();
-    }
-    prefix_sizes.pop_back();
-  };
-  int global = 1, memory = 0;
+  int global = 1, memory = 0, lbl_cnt = 0;
   auto gen = [&](auto &&self, Node *t) -> void {
+    if (t == nullptr) {
+      return;
+    }
     auto gen_cmp = [&](const std::string &asm_comp) {
       Binary *u = (Binary *)t;
       self(self, u->Rhs);
@@ -199,13 +191,12 @@ void generate(Node *t, std::ostream &os) {
         throw std::runtime_error("Missing declaration for function " + u->Name + " before body");
       }
       funcs[u->Name].second = u;
-      push_prefix(u->Name + "__");
       std::string prev_func = std::exchange(cur_func, u->Name);
       int was = std::exchange(global, 0);
       if (was) {
         func_label[u->Name] = u->Name;
       } else {
-        func_label[u->Name] = prefix;
+        func_label[u->Name] = ".L" + std::to_string(lbl_cnt++);
       }
       os << func_label[u->Name] << ":\n";
       int b = maximum_memory(u->Body);
@@ -223,6 +214,8 @@ void generate(Node *t, std::ostream &os) {
         cur_size += memory_needed(v->ParamTypes[i]);
         os << "  mov " << asm_keyword_for(v->ParamTypes[i])
            << "[rbp-" << cur_size << "], " << get_register(registers[i], v->ParamTypes[i]) << '\n';
+        vars[u->Params[i]] = v->ParamTypes[i];
+        var_offset[u->Params[i]] = cur_size;
       }
       // stack based
       for (int i = 6; i < int(u->Params.size()); ++i) {
@@ -235,12 +228,12 @@ void generate(Node *t, std::ostream &os) {
       }
       os << "  sub rsp, " << b << "\n";
       self(self, u->Body);
-      os << func_label[u->Name] << "__end:\n";
+      os << func_label[u->Name] << ".end:\n";
       os << "  mov rsp, rbp\n";
       os << "  pop rbp\n";
       os << "  ret\n";
-      pop_prefix();
       cur_func = prev_func;
+      global = was;
     } break;
     case variableDecl: {
       VariableDecl *u = (VariableDecl *)t;
@@ -248,7 +241,7 @@ void generate(Node *t, std::ostream &os) {
       if (vars.contains(u->Name)) {
         throw std::runtime_error("Redefinition of symbol " + u->Name);
       }
-      vars[u->Name] = u;
+      vars[u->Name] = u->VariableType;
       var_offset[u->Name] = memory;
     } break;
     case assign: {
@@ -264,7 +257,7 @@ void generate(Node *t, std::ostream &os) {
         }
         // assume the codegen for rhs puts the result in rax
         self(self, u->Value);
-        Type type = vars[ident->Name]->VariableType;
+        Type type = vars[ident->Name];
         os << "  mov " << asm_keyword_for(type)
            << "[rbp-" << var_offset[ident->Name] << "], " << rax_for(type) << '\n';
       }
@@ -293,7 +286,7 @@ void generate(Node *t, std::ostream &os) {
       if (!vars.contains(u->Name)) {
         throw std::runtime_error("Cannot dereference unknown symbol " + u->Name);
       }
-      Type type = vars[u->Name]->VariableType;
+      Type type = vars[u->Name];
       handle_mov("rax", type);
       os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
     };
@@ -326,7 +319,7 @@ void generate(Node *t, std::ostream &os) {
           if (!vars.contains(((Identifier *)u->Params[i])->Name)) {
             throw std::runtime_error("Unknown symbol: " + ((Identifier *)u->Params[i])->Name);
           }
-          type = vars[((Identifier *)u->Params[i])->Name]->VariableType;
+          type = vars[((Identifier *)u->Params[i])->Name];
         } break;
         }
         if (i < 6) {
@@ -356,14 +349,14 @@ void generate(Node *t, std::ostream &os) {
       if (!vars.contains(u->Name)) {
         throw std::runtime_error("Cannot find symbol: " + u->Name);
       }
-      Type type = vars[u->Name]->VariableType;
+      Type type = vars[u->Name];
       handle_mov("rax", type);
       os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
     } break;
     case returnNode: {
       Return *u = (Return *)t;
       self(self, u->Value);
-      os << "  jmp " << func_label[cur_func] << "__end\n";
+      os << "  jmp " << func_label[cur_func] << ".end\n";
     } break;
     case equal: {
       gen_cmp("sete");
@@ -428,6 +421,15 @@ void generate(Node *t, std::ostream &os) {
       os << "  xor edx, edx\n";
       os << "  div rbx\n";
       os << "  mov rax, rdx\n";
+    } break;
+    case ifNode: {
+      If *u = (If *)t;
+      self(self, u->Cond);
+      os << "  cmp rax, 0\n";
+      int cnt = lbl_cnt++;
+      os << "  jz .after_L" << cnt << '\n';
+      self(self, u->Body);
+      os << ".after_L" << cnt << ":\n";
     } break;
     default: {
     } break;

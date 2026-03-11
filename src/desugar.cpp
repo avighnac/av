@@ -44,7 +44,17 @@ void desugar(Node *t) {
     ret.push_back(t);
     return ret;
   };
-  rec(rec, t);
+  if (t->type == block) {
+    std::vector<Node *> modified_stmts;
+    for (Node *&i : ((Block *)t)->stmts) {
+      for (Node *&j : rec(rec, i)) {
+        modified_stmts.push_back(j);
+      }
+    }
+    ((Block *)t)->stmts = modified_stmts;
+  } else {
+    rec(rec, t);
+  }
 }
 
 } // namespace av

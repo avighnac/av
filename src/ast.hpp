@@ -54,6 +54,7 @@ enum NodeType {
   multiply,
   div,
   modulo,
+  ifNode,
   __count_NodeType
 };
 
@@ -218,7 +219,7 @@ struct Plus : Binary {
 
 struct UnaryMinus : Node {
   Node *To;
-  UnaryMinus() : Node(unaryMinus) {}
+  UnaryMinus() : To(nullptr), Node(unaryMinus) {}
   ~UnaryMinus() {
     delete To;
   }
@@ -238,6 +239,16 @@ struct Div : Binary {
 
 struct Modulo : Binary {
   Modulo() : Binary(modulo) {}
+};
+
+struct If : Node {
+  Node *Cond;
+  Node *Body;
+  If() : Cond(nullptr), Body(nullptr), Node(ifNode) {}
+  ~If() {
+    delete Cond;
+    delete Body;
+  }
 };
 
 } // namespace av

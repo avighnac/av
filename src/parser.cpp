@@ -7,11 +7,17 @@
 
 namespace av {
 
-Node *parse(tokenizer &tk) {
+Node *_parse(tokenizer &tk) {
   if (tk.size() == 0) {
     return nullptr;
   }
-  if (tk.has([&](const Token &t) { return t.type == Tk_Semicolon; }) != -1) {
+  int bracepair_cnt = 0;
+  for (int i = 0, bal = 0; i < tk.size(); ++i) {
+    int pbal = bal;
+    bal += (tk[i].type == Tk_OpenBrace) - (tk[i].type == Tk_CloseBrace);
+    bracepair_cnt += pbal == 1 && bal == 0;
+  }
+  if (tk.has([&](const Token &t) { return t.type == Tk_Semicolon; }) != -1 || bracepair_cnt > 1) {
     int bal = 0;
     Block *t = new Block();
     tokenizer stmt;
@@ -34,11 +40,10 @@ Node *parse(tokenizer &tk) {
           left.push_back(stmt.get());
           Token token = stmt.get();
           left.push_back(token);
-          t->stmts.push_back(parse(left));
+          t->stmts.push_back(_parse(left));
           stmt.push_front(token);
         }
-        // desugar `int32 main() {`
-        t->stmts.push_back(parse(stmt));
+        t->stmts.push_back(_parse(stmt));
         stmt.clear();
       }
     }
@@ -128,7 +133,7 @@ Node *parse(tokenizer &tk) {
       }
     }
     tk.get();
-    t->Body = parse(tk);
+    t->Body = _parse(tk);
     return t;
   }
   // addressof
@@ -203,15 +208,37 @@ Node *parse(tokenizer &tk) {
       right.push_back(tk[i]);
     }
     Assign *t = new Assign();
-    t->To = parse(left);
-    t->Value = parse(right);
+    t->To = _parse(left);
+    t->Value = _parse(right);
+    return t;
+  }
+  // if
+  if (tk.size() >= 1 && tk[0].type == Tk_If) {
+    if (tk.size() == 1 || tk[1].type != Tk_OpenParen) {
+      throw std::runtime_error("Expected a statement after 'if'");
+    }
+    int bal = 1;
+    tk.get();
+    tk.get();
+    tokenizer cond;
+    while (bal != 0) {
+      Token token = tk.get();
+      bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
+      cond.push_back(token);
+    }
+    cond.pop_back();
+    If *t = new If();
+    t->Cond = _parse(cond);
+    tk.get();
+    tk.pop_back();
+    t->Body = _parse(tk);
     return t;
   }
   // unaryMinus
   if (tk.size() >= 1 && tk[0].type == Tk_Minus) {
     UnaryMinus *t = new UnaryMinus();
     tk.get();
-    t->To = parse(tk);
+    t->To = _parse(tk);
     return t;
   }
   // 12 binops: equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo
@@ -231,8 +258,8 @@ Node *parse(tokenizer &tk) {
       right.push_back(tk[i]);
     }
     Binary *t = new Binary(binops[i]);
-    t->Lhs = parse(left);
-    t->Rhs = parse(right);
+    t->Lhs = _parse(left);
+    t->Rhs = _parse(right);
     return t;
   }
   // functioncall: f(...
@@ -249,12 +276,14 @@ Node *parse(tokenizer &tk) {
       param.push_back(token);
       if (token.type == Tk_Comma) {
         param.pop_back();
-        t->Params.push_back(parse(param));
+        t->Params.push_back(_parse(param));
         param.clear();
       }
     }
     param.pop_back();
-    t->Params.push_back(parse(param));
+    if (param.size() != 0) {
+      t->Params.push_back(_parse(param));
+    } 
     return t;
   }
   // identifier
@@ -267,10 +296,20 @@ Node *parse(tokenizer &tk) {
   if (tk.size() >= 1 && tk[0].type == Tk_Return) {
     Return *t = new Return();
     tk.get();
-    t->Value = parse(tk);
+    t->Value = _parse(tk);
     return t;
   }
   throw std::runtime_error("Unknown node type");
+}
+
+Node *parse(tokenizer &tk) {
+  Node *t = _parse(tk);
+  if (t->type != block) {
+    Block *b = new Block();
+    b->stmts.push_back(t);
+    return b;
+  }
+  return t;
 }
 
 } // namespace av
