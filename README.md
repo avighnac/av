@@ -24,12 +24,6 @@ int32 main() {
 It generates the following assembly:
 ```asm
 section .text
-global _start
-_start:
-  call main
-  mov edi, eax
-  mov eax, 60
-  syscall
 main:
   push rbp
   mov rbp, rsp
@@ -56,6 +50,12 @@ write:
   mov eax, 1
   syscall
   ret
+global _start
+_start:
+  call main
+  mov edi, eax
+  mov eax, 60
+  syscall
 ```
 
 Which is pretty great!
