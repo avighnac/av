@@ -29,6 +29,11 @@ Node *parse(tokenizer &tk) {
         if (token.type == Tk_Semicolon) {
           stmt.pop();
         }
+        // for functions, keep everything intact, but for pure blocks we do wanna pop the first { and last }
+        if (stmt[0].type == Tk_OpenBrace && stmt[stmt.size() - 1].type == Tk_CloseBrace) {
+          stmt.get();
+          stmt.pop();
+        }
         t->stmts.push_back(parse(stmt));
         stmt.clear();
       }
@@ -112,7 +117,7 @@ Node *parse(tokenizer &tk) {
       }
     }
     tk.get();
-    t->Block = parse(tk);
+    t->Body = parse(tk);
     return t;
   }
   // addressof

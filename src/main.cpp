@@ -1,4 +1,5 @@
 #include "ast.hpp"
+#include "gen.hpp"
 #include "parser.hpp"
 #include "tokenizer.hpp"
 #include <algorithm>
@@ -11,12 +12,13 @@ int main(int argc, char **_argv) {
   for (int i = 0; i < argc; ++i) {
     argv[i] = _argv[i];
   }
-  
+
   if (argc == 1) {
     std::cout << "Usage: " << argv[0] << " <filename.av>\n";
     std::cout << "Options:\n";
     std::cout << "  --tokenize: Tokenizes the file\n";
     std::cout << "  --ast: Prints the AST\n";
+    std::cout << "  --s: Prints the asm\n";
     return 0;
   }
 
@@ -58,4 +60,33 @@ int main(int argc, char **_argv) {
     delete root;
     return 0;
   }
+
+  if (std::find(argv.begin(), argv.end(), "--s") != argv.end()) {
+    av::tokenizer tk(code);
+    av::Node *root = av::parse(tk);
+    std::cout << "section .text\n";
+    std::cout << "global _start\n";
+    std::cout << "_start:\n";
+    std::cout << "  call main\n";
+    std::cout << "  mov edi, eax\n";
+    std::cout << "  mov eax, 60\n";
+    std::cout << "  syscall\n";
+    av::generate(root, std::cout);
+  }
+
+  std::ofstream os(argv[1] + ".asm");
+  av::tokenizer tk(code);
+  av::Node *root = av::parse(tk);
+  os << "section .text\n";
+  os << "global _start\n";
+  os << "_start:\n";
+  os << "  call main\n";
+  os << "  mov edi, eax\n";
+  os << "  mov eax, 60\n";
+  os << "  syscall\n";
+  av::generate(root, os);
+
+  // now just write nasm + ld blindly
+  std::system(("nasm -f elf64 " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
+  std::system(("ld " + argv[1] + ".o -o a.out").c_str());
 }

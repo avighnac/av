@@ -38,7 +38,6 @@ enum NodeType {
   addressOf,
   dereference,
   functionCall,
-  value,
   identifier,
   returnNode,
   __count_NodeType
@@ -82,10 +81,10 @@ struct FunctionDecl : Node {
 struct FunctionBody : Node {
   std::string Name;
   std::vector<std::string> Params;
-  Node *Block;
+  Node *Body;
   FunctionBody() : Node(functionBody) {}
   ~FunctionBody() {
-    delete Block;
+    delete Body;
   }
 };
 

@@ -7,7 +7,7 @@ std::string av::to_string(av::NodeType type) {
     "Block", "FunctionDecl", "FunctionBody", "VariableDecl",
     "Assign", "Int8Literal", "Int16Literal", "Int32Literal",
     "Int64Literal", "AddressOf", "Dereference", "FunctionCall",
-    "Value", "Identifier", "Return"
+    "Identifier", "Return"
   });
   return a[int(type)];
 }
@@ -65,8 +65,8 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
     FunctionBody *t = (FunctionBody *)this;
     os << tab << "Name: " << t->Name << '\n';
     os << tab << "Params: " << t->Params << '\n';
-    os << tab << "Block:\n";
-    t->Block->print(os, dep + 1);
+    os << tab << "Body:\n";
+    t->Body->print(os, dep + 1);
   } break;
   case variableDecl: {
     VariableDecl *t = (VariableDecl *)this;
