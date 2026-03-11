@@ -87,14 +87,24 @@ int maximum_memory(Node *t) {
   return ans;
 }
 
+// clang-format off
 std::array compiler_intrinsics{
-    "write"};
+  "write", "read"
+};
+// clang-format on
 std::array intrinsic_code{
     R"(write:    
   mov eax, 1
   syscall
   ret
-)"};
+)",
+    R"(read:    
+  xor eax, eax
+  syscall
+  ret
+)",
+
+};
 
 bool is_intrinsic(const std::string &s) {
   return std::find(compiler_intrinsics.begin(), compiler_intrinsics.end(), s) != compiler_intrinsics.end();
@@ -128,6 +138,41 @@ void generate(Node *t, std::ostream &os) {
   };
   int global = 1, memory = 0;
   auto gen = [&](auto &&self, Node *t) -> void {
+    auto gen_cmp = [&](const std::string &asm_comp) {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  cmp rax, rbx\n";
+      os << "  " << asm_comp << " al\n";
+      os << "  movzx eax, al\n";
+    };
+    auto gen_shift = [&](const std::string &asm_shift) {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rcx\n";
+      os << "  " << asm_shift << " rax, cl\n";
+    };
+    auto handle_mov = [&](const std::string &s, const Type &type) {
+      int idx = std::find(registers.begin(), registers.end(), s) - registers.begin();
+      int sz = memory_needed(type);
+      if (sz == 8) {
+        os << "  mov " << register_variants[idx][0];
+        return;
+      }
+      if (sz == 4) {
+        os << "  mov " << register_variants[idx][1];
+        return;
+      }
+      if (sz == 2 || sz == 1) {
+        os << "  movzx " << register_variants[idx][1];
+        return;
+      }
+      assert(false);
+    };
     switch (t->type) {
     case block: {
       auto Funcs = funcs;
@@ -182,7 +227,9 @@ void generate(Node *t, std::ostream &os) {
       // stack based
       for (int i = 6; i < int(u->Params.size()); ++i) {
         cur_size += memory_needed(v->ParamTypes[i]);
-        os << "  mov " << rax_for(v->ParamTypes[i]) << ", [rsp+" << 8 * (i - 5) << "]\n"; // again works because alignment
+        // again works because alignment
+        handle_mov("rax", v->ParamTypes[i]);
+        os << ", [rsp+" << 8 * (i - 5) << "]\n";
         os << "  mov " << asm_keyword_for(v->ParamTypes[i])
            << "[rbp-" << cur_size << "], rax\n";
       }
@@ -247,8 +294,8 @@ void generate(Node *t, std::ostream &os) {
         throw std::runtime_error("Cannot dereference unknown symbol " + u->Name);
       }
       Type type = vars[u->Name]->VariableType;
-      os << "  mov " << rax_for(type) << ", " << asm_keyword_for(type)
-         << "[rbp-" << var_offset[u->Name] << "]\n";
+      handle_mov("rax", type);
+      os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
     };
     case functionCall: {
       FunctionCall *u = (FunctionCall *)t;
@@ -283,7 +330,8 @@ void generate(Node *t, std::ostream &os) {
         } break;
         }
         if (i < 6) {
-          os << "  mov " << get_register(registers[i], type) << ", " << rax_for(type) << '\n';
+          handle_mov(registers[i], type);
+          os << ", " << rax_for(type) << '\n';
         } else {
           if (i == 6) {
             os << "  sub rsp, " << 8 * (u->Params.size() - 5) << '\n';
@@ -309,12 +357,77 @@ void generate(Node *t, std::ostream &os) {
         throw std::runtime_error("Cannot find symbol: " + u->Name);
       }
       Type type = vars[u->Name]->VariableType;
-      os << "  mov " << rax_for(type) << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
+      handle_mov("rax", type);
+      os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
     } break;
     case returnNode: {
       Return *u = (Return *)t;
       self(self, u->Value);
       os << "  jmp " << func_label[cur_func] << "__end\n";
+    } break;
+    case equal: {
+      gen_cmp("sete");
+    } break;
+    case less: {
+      gen_cmp("setl");
+    } break;
+    case greater: {
+      gen_cmp("setg");
+    } break;
+    case lessEqual: {
+      gen_cmp("setle");
+    } break;
+    case greaterEqual: {
+      gen_cmp("setge");
+    } break;
+    case shiftLeft: {
+      gen_shift("sal");
+    } break;
+    case shiftRight: {
+      gen_shift("sar");
+    } break;
+    case plus: {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  add rax, rbx\n";
+    } break;
+    case minus: {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  sub rax, rbx\n";
+    } break;
+    case multiply: {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  mul rbx\n";
+    } break;
+    case div: {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  xor edx, edx\n";
+      os << "  div rbx\n";
+    } break;
+    case modulo: {
+      Binary *u = (Binary *)t;
+      self(self, u->Rhs);
+      os << "  push rax\n";
+      self(self, u->Lhs);
+      os << "  pop rbx\n";
+      os << "  xor edx, edx\n";
+      os << "  div rbx\n";
+      os << "  mov rax, rdx\n";
     } break;
     default: {
     } break;

@@ -41,6 +41,19 @@ enum NodeType {
   functionCall,
   identifier,
   returnNode,
+  equal,
+  less,
+  greater,
+  lessEqual,
+  greaterEqual,
+  shiftLeft,
+  shiftRight,
+  plus,
+  minus,
+  unaryMinus,
+  multiply,
+  div,
+  modulo,
   __count_NodeType
 };
 
@@ -159,6 +172,72 @@ struct Return : Node {
   ~Return() {
     delete Value;
   }
+};
+
+struct Binary : Node {
+  Node *Lhs;
+  Node *Rhs;
+  Binary(const NodeType &type) : Node(type) {}
+  ~Binary() {
+    delete Lhs;
+    delete Rhs;
+  }
+};
+
+struct Equal : Binary {
+  Equal() : Binary(equal) {}
+};
+
+struct Less : Binary {
+  Less() : Binary(less) {}
+};
+
+struct Greater : Binary {
+  Greater() : Binary(greater) {}
+};
+
+struct LessEqual : Binary {
+  LessEqual() : Binary(lessEqual) {}
+};
+
+struct GreaterEqual : Binary {
+  GreaterEqual() : Binary(greaterEqual) {}
+};
+
+struct ShiftLeft : Binary {
+  ShiftLeft() : Binary(shiftLeft) {}
+};
+
+struct ShiftRight : Binary {
+  ShiftRight() : Binary(shiftRight) {}
+};
+
+struct Plus : Binary {
+  Plus() : Binary(plus) {}
+};
+
+struct UnaryMinus : Node {
+  Node *To;
+  UnaryMinus() : Node(unaryMinus) {}
+  ~UnaryMinus() {
+    delete To;
+  }
+};
+
+struct Minus : Binary {
+  Minus() : Binary(minus) {}
+};
+
+struct Multiply : Binary {
+  Multiply() : Binary(multiply) {}
+};
+
+struct Div : Binary {
+  Div() : Binary(div) {}
+};
+
+struct Modulo : Binary {
+  Modulo() : Binary(modulo) {}
 };
 
 } // namespace av

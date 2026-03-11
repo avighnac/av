@@ -1,12 +1,13 @@
 #include "tokenizer.hpp"
-#include <string>
-#include <array>
 #include <algorithm>
-#include <utility>
+#include <array>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace av {
 
+// clang-format off
 bool is_keyword(std::string s) {
   static std::array<std::string, __count_TokenType> a({
     "int8", "int16", "int32", "int64", "void", "int8*",
@@ -17,18 +18,25 @@ bool is_keyword(std::string s) {
 
 std::string to_string(TokenType token) {
   static const std::array<std::string, int(av::__count_TokenType)> a({
-    "Datatype", "Identifier", "Number", "Equal", "Semicolon",
+    "Datatype", "Identifier", "Number", "Assign", "Semicolon",
     "OpenParen", "CloseParen", "OpenBrace", "CloseBrace",
     "Amp", "Bar", "Comma", "Star", "Underscore", "LogicalAnd", "LogicalOr",
-    "Return"
+    "Return", "Equal", "Less", "Greater", "LessEqual", "GreaterEqual",
+    "ShiftLeft", "ShiftRight", "Plus", "Minus", "Div", "Percent", "PlusPlus",
+    "MinusMinus"
   });
   return a[int(token)];
 }
+// clang-format on
 std::ostream &operator<<(std::ostream &os, const TokenType &token) { return os << to_string(token); }
 
 char tokenizer::peek_(int adv) { return ptr_ + adv >= buf.length() ? 0 : buf[ptr_ + adv]; }
 char tokenizer::advance() { return buf[ptr_++]; }
-void tokenizer::skip_space() { while (std::isspace(peek_())) { advance(); } }
+void tokenizer::skip_space() {
+  while (std::isspace(peek_())) {
+    advance();
+  }
+}
 
 std::string tokenizer::get_word() {
   std::string ret;
@@ -44,9 +52,9 @@ std::string tokenizer::get_word() {
 std::string tokenizer::get_number() {
   std::string ret;
   ret.push_back(advance());
-  if (ret.back() != '-' && !std::isdigit(ret.back())) {
-    throw std::runtime_error("get_number() called but first character was " + std::string(1, ret.back()));
-  }
+  // if (ret.back() != '-' && !std::isdigit(ret.back())) {
+  //   throw std::runtime_error("get_number() called but first character was " + std::string(1, ret.back()));
+  // }
   while (std::isdigit(peek_())) {
     ret.push_back(advance());
   }
@@ -72,17 +80,12 @@ Token tokenizer::get_() {
     return token;
   }
 
-  if (std::isdigit(c) || c == '-' && std::isdigit(peek_(1))) {
+  if (std::isdigit(c)) {
     token.type = Tk_Number;
     token.token = get_number();
     return token;
   }
 
-  if (c == '=') {
-    advance();
-    token.type = Tk_Equal;
-    return token;
-  }
   if (c == ';') {
     advance();
     token.type = Tk_Semicolon;
@@ -123,6 +126,16 @@ Token tokenizer::get_() {
     token.type = Tk_Star;
     return token;
   }
+  if (c == '/') {
+    advance();
+    token.type = Tk_Div;
+    return token;
+  }
+  if (c == '%') {
+    advance();
+    token.type = Tk_Percent;
+    return token;
+  }
 
   if (c == '&') {
     advance();
@@ -141,6 +154,62 @@ Token tokenizer::get_() {
       token.type = Tk_LogicalOr;
     } else {
       token.type = Tk_Bar;
+    }
+    return token;
+  }
+  if (c == '+') {
+    advance();
+    if (peek_() == '+') {
+      advance();
+      token.type = Tk_PlusPlus;
+    } else {
+      token.type = Tk_Plus;
+    }
+    return token;
+  }
+  if (c == '-') {
+    advance();
+    if (peek_() == '-') {
+      advance();
+      token.type = Tk_MinusMinus;
+    } else {
+      token.type = Tk_Minus;
+    }
+    return token;
+  }
+  if (c == '=') {
+    advance();
+    if (peek_() == '=') {
+      advance();
+      token.type = Tk_Equal;
+    } else {
+      token.type = Tk_Assign;
+    }
+    return token;
+  }
+  if (c == '<') {
+    advance();
+    if (peek_() == '=') {
+      advance();
+      token.type = Tk_LessEqual;
+    } else if (peek_() == '<') {
+      advance();
+      token.type = Tk_ShiftLeft;
+    } else {
+      token.type = Tk_Less;
+    }
+    return token;
+  }
+  if (c == '>') {
+    advance();
+    if (peek_() == '=') {
+      advance();
+      token.type = Tk_GreaterEqual;
+    } else if (peek_() == '<') {
+      advance();
+      token.type = Tk_ShiftRight;
+    } else {
+      token.type = Tk_Greater;
     }
     return token;
   }
@@ -179,4 +248,4 @@ void tokenizer::clear() {
   *this = tokenizer();
 }
 
-}
+} // namespace av

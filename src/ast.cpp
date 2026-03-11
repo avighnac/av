@@ -1,13 +1,16 @@
 #include "ast.hpp"
-#include <string>
 #include <algorithm>
+#include <string>
 
+// clang-format off
 std::string av::to_string(av::NodeType type) {
   static const std::array<std::string, int(av::__count_NodeType)> a({
     "Block", "FunctionDecl", "FunctionBody", "VariableDecl",
     "Assign", "Int8Literal", "Int16Literal", "Int32Literal",
     "Int64Literal", "AddressOf", "Dereference", "FunctionCall",
-    "Identifier", "Return"
+    "Identifier", "Return", "Equal", "Less", "Greater",
+    "LessEqual", "GreaterEqual", "ShiftLeft", "ShiftRight",
+    "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo"
   });
   return a[int(type)];
 }
@@ -15,8 +18,7 @@ std::string av::to_string(av::NodeType type) {
 std::string av::to_string(av::Type type) {
   static const std::array<std::string, int(av::__count_Type)> a({
     "Int8", "Int16", "Int32", "Int64", "Int8Ptr", "Int16Ptr",
-    "Int32Ptr", "Int64Ptr", "VoidPtr", "Void"
-  });
+    "Int32Ptr", "Int64Ptr", "VoidPtr", "Void"});
   return a[int(type)];
 }
 
@@ -27,11 +29,12 @@ av::Type av::type_from_string(const std::string &s) {
   });
   return av::Type(std::find(a.begin(), a.end(), s) - a.begin());
 }
+// clang-format on
 
 template <typename T>
-  requires std::same_as<T, av::NodeType> || std::same_as<T, av::Type> 
+  requires std::same_as<T, av::NodeType> || std::same_as<T, av::Type>
 std::ostream &av::operator<<(std::ostream &os, const T &type) {
-  return os << to_string(type); 
+  return os << to_string(type);
 }
 
 template <typename T>
@@ -113,7 +116,28 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
   } break;
   case returnNode: {
     os << tab << "Value:\n";
-    ((Return* )this)->Value->print(os, dep + 1);
+    ((Return *)this)->Value->print(os, dep + 1);
+  } break;
+  case equal:
+  case less:
+  case greater:
+  case lessEqual:
+  case greaterEqual:
+  case shiftLeft:
+  case shiftRight:
+  case plus:
+  case minus:
+  case multiply:
+  case div:
+  case modulo: {
+    os << tab << "Lhs:\n";
+    ((Binary *)this)->Lhs->print(os, dep + 1);
+    os << tab << "Rhs:\n";
+    ((Binary *)this)->Rhs->print(os, dep + 1);
+  } break;
+  case unaryMinus: {
+    os << tab << "To:\n";
+    ((UnaryMinus *)this)->To->print(os, dep + 1);
   } break;
   }
   return os;

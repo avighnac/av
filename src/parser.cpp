@@ -11,13 +11,7 @@ Node *parse(tokenizer &tk) {
   if (tk.size() == 0) {
     return nullptr;
   }
-  int is_block = 0;
-  for (int i = 0, bal = 0; i < int(tk.size()) && !is_block; ++i) {
-    bal += (tk[i].type == Tk_OpenBrace) - (tk[i].type == Tk_CloseBrace);
-    is_block |= bal == 0 && tk[i].type == Tk_Semicolon;
-  }
-  // block
-  if (is_block) {
+  if (tk.has([&](const Token &t) { return t.type == Tk_Semicolon; }) != -1) {
     int bal = 0;
     Block *t = new Block();
     tokenizer stmt;
@@ -35,7 +29,7 @@ Node *parse(tokenizer &tk) {
           stmt.pop_back();
         }
         // desugar `int32 x = 5`
-        if (stmt.size() >= 3 && stmt[0].type == Tk_Type && stmt[1].type == Tk_Identifier && stmt[2].type == Tk_Equal) {
+        if (stmt.size() >= 3 && stmt[0].type == Tk_Type && stmt[1].type == Tk_Identifier && stmt[2].type == Tk_Assign) {
           tokenizer left;
           left.push_back(stmt.get());
           Token token = stmt.get();
@@ -198,25 +192,47 @@ Node *parse(tokenizer &tk) {
     t->Value = x;
     return t;
   }
-  int has_equal = -1;
-  for (int i = 0, bal = 0; i < int(tk.size()) && has_equal == -1; ++i) {
-    bal += (tk[i].type == Tk_OpenBrace) - (tk[i].type == Tk_CloseBrace);
-    if (bal == 0 && tk[i].type == Tk_Equal) {
-      has_equal = i;
-    }
-  }
+  int has_assign = tk.has([&](const Token &t) { return t.type == Tk_Assign; });
   // assign
-  if (has_equal != -1) {
+  if (has_assign != -1) {
     tokenizer left, right;
-    for (int i = 0; i < has_equal; ++i) {
+    for (int i = 0; i < has_assign; ++i) {
       left.push_back(tk[i]);
     }
-    for (int i = has_equal + 1; i < int(tk.size()); ++i) {
+    for (int i = has_assign + 1; i < int(tk.size()); ++i) {
       right.push_back(tk[i]);
     }
     Assign *t = new Assign();
     t->To = parse(left);
     t->Value = parse(right);
+    return t;
+  }
+  // unaryMinus
+  if (tk.size() >= 1 && tk[0].type == Tk_Minus) {
+    UnaryMinus *t = new UnaryMinus();
+    tk.get();
+    t->To = parse(tk);
+    return t;
+  }
+  // 12 binops: equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo
+  // = < > <= >= << >> + - * / %
+  std::array binops{equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo};
+  std::array binops_tk{Tk_Equal, Tk_Less, Tk_Greater, Tk_LessEqual, Tk_GreaterEqual, Tk_ShiftLeft, Tk_ShiftRight, Tk_Plus, Tk_Minus, Tk_Star, Tk_Div, Tk_Percent};
+  for (int i = 0; i < int(binops.size()); ++i) {
+    int has = tk.has([&](const Token &t) { return t.type == binops_tk[i]; });
+    if (has == -1) {
+      continue;
+    }
+    tokenizer left, right;
+    for (int i = 0; i < has; ++i) {
+      left.push_back(tk[i]);
+    }
+    for (int i = has + 1; i < int(tk.size()); ++i) {
+      right.push_back(tk[i]);
+    }
+    Binary *t = new Binary(binops[i]);
+    t->Lhs = parse(left);
+    t->Rhs = parse(right);
     return t;
   }
   // functioncall: f(...
