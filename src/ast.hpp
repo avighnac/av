@@ -54,6 +54,8 @@ enum NodeType {
   multiply,
   div,
   modulo,
+  bitwiseAnd,
+  bitwiseOr,
   ifNode,
   whileNode,
   __count_NodeType
@@ -240,6 +242,14 @@ struct Div : Binary {
 
 struct Modulo : Binary {
   Modulo() : Binary(modulo) {}
+};
+
+struct BitwiseAnd : Binary {
+  BitwiseAnd() : Binary(bitwiseAnd) {}
+};
+
+struct BitwiseOr : Binary {
+  BitwiseOr() : Binary(bitwiseOr) {}
 };
 
 struct If : Node {

@@ -263,27 +263,6 @@ Node *_parse(tokenizer &tk) {
     t->To = _parse(tk);
     return t;
   }
-  // 12 binops: equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo
-  // = < > <= >= << >> + - * / %
-  std::array binops{equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo};
-  std::array binops_tk{Tk_Equal, Tk_Less, Tk_Greater, Tk_LessEqual, Tk_GreaterEqual, Tk_ShiftLeft, Tk_ShiftRight, Tk_Plus, Tk_Minus, Tk_Star, Tk_Div, Tk_Percent};
-  for (int i = 0; i < int(binops.size()); ++i) {
-    int has = tk.has([&](const Token &t) { return t.type == binops_tk[i]; });
-    if (has == -1) {
-      continue;
-    }
-    tokenizer left, right;
-    for (int i = 0; i < has; ++i) {
-      left.push_back(tk[i]);
-    }
-    for (int i = has + 1; i < int(tk.size()); ++i) {
-      right.push_back(tk[i]);
-    }
-    Binary *t = new Binary(binops[i]);
-    t->Lhs = _parse(left);
-    t->Rhs = _parse(right);
-    return t;
-  }
   // functioncall: f(...
   if (tk.size() >= 2 && tk[0].type == Tk_Identifier && tk[1].type == Tk_OpenParen) {
     FunctionCall *t = new FunctionCall();
@@ -308,17 +287,38 @@ Node *_parse(tokenizer &tk) {
     }
     return t;
   }
-  // identifier
-  if (tk.size() == 1 && tk[0].type == Tk_Identifier) {
-    Identifier *t = new Identifier();
-    t->Name = tk[0].token;
-    return t;
-  }
   // return
   if (tk.size() >= 1 && tk[0].type == Tk_Return) {
     Return *t = new Return();
     tk.get();
     t->Value = _parse(tk);
+    return t;
+  }
+  // 14 binops: bitwand, bitwor, equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo
+  // &, |, = < > <= >= << >> + - * / %
+  std::array binops{bitwiseAnd, bitwiseOr, equal, less, greater, lessEqual, greaterEqual, shiftLeft, shiftRight, plus, minus, multiply, div, modulo};
+  std::array binops_tk{Tk_Amp, Tk_Bar, Tk_Equal, Tk_Less, Tk_Greater, Tk_LessEqual, Tk_GreaterEqual, Tk_ShiftLeft, Tk_ShiftRight, Tk_Plus, Tk_Minus, Tk_Star, Tk_Div, Tk_Percent};
+  for (int i = 0; i < int(binops.size()); ++i) {
+    int has = tk.has([&](const Token &t) { return t.type == binops_tk[i]; });
+    if (has == -1) {
+      continue;
+    }
+    tokenizer left, right;
+    for (int i = 0; i < has; ++i) {
+      left.push_back(tk[i]);
+    }
+    for (int i = has + 1; i < int(tk.size()); ++i) {
+      right.push_back(tk[i]);
+    }
+    Binary *t = new Binary(binops[i]);
+    t->Lhs = _parse(left);
+    t->Rhs = _parse(right);
+    return t;
+  }
+  // identifier
+  if (tk.size() == 1 && tk[0].type == Tk_Identifier) {
+    Identifier *t = new Identifier();
+    t->Name = tk[0].token;
     return t;
   }
   throw std::runtime_error("Unknown node type");

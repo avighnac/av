@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <iostream>
 #include <map>
 #include <ostream>
 #include <stdexcept>
@@ -16,8 +17,26 @@ int memory_needed(const Type &type) {
   return a[int(type)];
 }
 
-std::string asm_keyword_for(const Type &type) {
-  int sz = memory_needed(type);
+Type deref(const Type &type) {
+  if (type == VoidPtr) {
+    throw std::runtime_error("Cannot dereference a void*");
+  }
+  if (type == Int8Ptr) {
+    return Int8;
+  }
+  if (type == Int16Ptr) {
+    return Int16;
+  }
+  if (type == Int32Ptr) {
+    return Int32;
+  }
+  if (type == Int64Ptr) {
+    return Int64;
+  }
+  throw std::runtime_error("Can only dereference a ptr type");
+}
+
+std::string asm_keyword_for(int sz) {
   if (sz == 4) {
     return "dword";
   }
@@ -32,6 +51,9 @@ std::string asm_keyword_for(const Type &type) {
   }
   throw std::runtime_error("No asm keyword found for size " + std::to_string(sz));
 }
+std::string asm_keyword_for(const Type &type) {
+  return asm_keyword_for(memory_needed(type));
+}
 
 bool is_literal(const NodeType &type) {
   std::array a{
@@ -40,29 +62,33 @@ bool is_literal(const NodeType &type) {
 }
 
 // clang-format off
-std::array<std::string, 7> registers = {
-  "rdi", "rsi", "rdx", "rcx", "r8", "r9", "rax"
+std::array<std::string, 8> registers = {
+  "rdi", "rsi", "rdx", "rcx", "r8", "r9", "rax", "rbx"
 };
 
-std::array<std::array<std::string, 4>, 7> register_variants = {{
+std::array<std::array<std::string, 4>, 8> register_variants = {{
   {"rdi", "edi", "di", "dil"},
   {"rsi", "esi", "si", "sil"},
   {"rdx", "edx", "dx", "dl"},
   {"rcx", "ecx", "cx", "cl"},
   {"r8", "r8d", "r8w", "r8b"},
   {"r9", "r9d", "r9w", "r9b"},
-  {"rax", "eax", "ax", "al"}
+  {"rax", "eax", "ax", "al"},
+  {"rbx", "ebx", "bx", "bl"}
 }};
 // clang-format on
 
-std::string get_register(const std::string &s, const Type &type) {
+std::string get_register(const std::string &s, int sz) {
   auto it = std::find(registers.begin(), registers.end(), s);
   assert(it != registers.end());
-  unsigned sz = memory_needed(type);
-  int w = std::bit_width(sz) - 1;
+  int w = std::bit_width(unsigned(sz)) - 1;
   return register_variants[it - registers.begin()][3 - w];
 }
-std::string rax_for(const Type &type) { return get_register("rax", type); }
+std::string get_register(const std::string &s, const Type &type) {
+  return get_register(s, memory_needed(type));
+}
+std::string rax_for(int size) { return get_register("rax", size); }
+std::string rax_for(const Type &type) { return rax_for(memory_needed(type)); }
 
 int maximum_memory(Node *t) {
   int ans = 0;
@@ -70,7 +96,7 @@ int maximum_memory(Node *t) {
   case block: {
     int sum_non_block = 0, max_block = 0;
     for (Node *&i : ((Block *)t)->stmts) {
-      if (i->type == block) {
+      if (i->type == block || i->type == whileNode || i->type == ifNode) {
         max_block = std::max(max_block, maximum_memory(i));
       } else {
         sum_non_block += maximum_memory(i);
@@ -81,6 +107,12 @@ int maximum_memory(Node *t) {
   case variableDecl: {
     ans = memory_needed(((VariableDecl *)t)->VariableType);
   } break;
+  case whileNode: {
+    ans = maximum_memory(((While *)t)->Body);
+  }
+  case ifNode: {
+    ans = maximum_memory(((If *)t)->Body);
+  }
   default: {
   } break;
   }
@@ -89,7 +121,7 @@ int maximum_memory(Node *t) {
 
 // clang-format off
 std::array compiler_intrinsics{
-  "write", "read"
+  "write", "read", "alloca"
 };
 // clang-format on
 std::array intrinsic_code{
@@ -103,7 +135,15 @@ std::array intrinsic_code{
   syscall
   ret
 )",
-
+    R"(alloca:   
+  pop rcx
+  add rdi, 15
+  and rdi, -16
+  sub rsp, rdi
+  mov rax, rsp
+  push rcx
+  ret
+)",
 };
 
 bool is_intrinsic(const std::string &s) {
@@ -126,11 +166,12 @@ void generate(Node *t, std::ostream &os) {
   std::string cur_func;
   std::vector<std::string> used_intrinsics;
   int global = 1, memory = 0, lbl_cnt = 0;
-  auto gen = [&](auto &&self, Node *t) -> void {
+  auto gen = [&](auto &&self, Node *t) -> int {
+    int sz = 0;
     if (t == nullptr) {
-      return;
+      return sz;
     }
-    auto gen_cmp = [&](const std::string &asm_comp) {
+    auto gen_cmp = [&](const std::string &asm_comp, int &sz) {
       Binary *u = (Binary *)t;
       self(self, u->Rhs);
       os << "  push rax\n";
@@ -139,14 +180,23 @@ void generate(Node *t, std::ostream &os) {
       os << "  cmp rax, rbx\n";
       os << "  " << asm_comp << " al\n";
       os << "  movzx eax, al\n";
+      sz = 4;
     };
-    auto gen_shift = [&](const std::string &asm_shift) {
+    auto gen_shift = [&](const std::string &asm_shift, int &sz) {
       Binary *u = (Binary *)t;
       self(self, u->Rhs);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = self(self, u->Lhs);
       os << "  pop rcx\n";
       os << "  " << asm_shift << " rax, cl\n";
+    };
+    auto gen_bitwise = [&](const std::string &asm_bitw, int &sz) {
+      Binary *u = (Binary *)t;
+      sz = std::max(self(self, u->Rhs), sz);
+      os << "  push rax\n";
+      sz = std::max(self(self, u->Lhs), sz);
+      os << "  pop rbx\n";
+      os << "  " << asm_bitw << " rax, rbx\n";
     };
     auto handle_mov = [&](const std::string &s, const Type &type) {
       int idx = std::find(registers.begin(), registers.end(), s) - registers.begin();
@@ -199,11 +249,20 @@ void generate(Node *t, std::ostream &os) {
         func_label[u->Name] = ".L" + std::to_string(lbl_cnt++);
       }
       os << func_label[u->Name] << ":\n";
+      auto Funcs = funcs;
+      auto Vars = vars;
+      auto Func_label = func_label;
+      auto Var_offset = var_offset;
+      auto Memory = memory;
+      if (u->Name == "print_int") {
+        int x = 2;
+      }
       int b = maximum_memory(u->Body);
       FunctionDecl *v = funcs[u->Name].first;
       // size needed for function arguments
       for (int i = 0; i < int(u->Params.size()); ++i) {
         b += memory_needed(v->ParamTypes[i]);
+        memory += memory_needed(v->ParamTypes[i]);
       }
       b = ((b + 16) / 16) * 16; // memory alignment
       os << "  push rbp\n";
@@ -212,7 +271,6 @@ void generate(Node *t, std::ostream &os) {
       int cur_size = 0;
       for (int i = 0; i < std::min(int(u->Params.size()), 6); ++i) {
         cur_size += memory_needed(v->ParamTypes[i]);
-        memory += memory_needed(v->ParamTypes[i]);
         os << "  mov " << asm_keyword_for(v->ParamTypes[i])
            << "[rbp-" << cur_size << "], " << get_register(registers[i], v->ParamTypes[i]) << '\n';
         vars[u->Params[i]] = v->ParamTypes[i];
@@ -221,7 +279,6 @@ void generate(Node *t, std::ostream &os) {
       // stack based
       for (int i = 6; i < int(u->Params.size()); ++i) {
         cur_size += memory_needed(v->ParamTypes[i]);
-        memory += memory_needed(v->ParamTypes[i]);
         // again works because alignment
         handle_mov("rax", v->ParamTypes[i]);
         os << ", [rsp+" << 8 * (i - 5) << "]\n";
@@ -238,6 +295,11 @@ void generate(Node *t, std::ostream &os) {
       os << "  ret\n";
       cur_func = prev_func;
       global = was;
+      funcs = Funcs;
+      vars = Vars;
+      func_label = Func_label;
+      var_offset = Var_offset;
+      memory = Memory;
     } break;
     case variableDecl: {
       VariableDecl *u = (VariableDecl *)t;
@@ -259,26 +321,44 @@ void generate(Node *t, std::ostream &os) {
         if (!vars.contains(ident->Name)) {
           throw std::runtime_error(ident->Name + ": unknown symbol");
         }
+        sz = memory_needed(vars[ident->Name]);
         // assume the codegen for rhs puts the result in rax
         self(self, u->Value);
         Type type = vars[ident->Name];
         os << "  mov " << asm_keyword_for(type)
            << "[rbp-" << var_offset[ident->Name] << "], " << rax_for(type) << '\n';
       }
+      if (u->To->type == dereference) {
+        self(self, u->Value);
+        std::string name = ((Dereference *)u->To)->Name;
+        if (!vars.contains(name)) {
+          throw std::runtime_error("Cannot dereference unknown symbol " + name);
+        }
+        Type type = deref(vars[name]);
+        sz = memory_needed(type);
+        os << "  mov rbx, qword[rbp-" << var_offset[name] << "]\n";
+        os << "  mov " << asm_keyword_for(sz) << "[rbx], "
+           << get_register("rax", sz) << '\n';
+      }
     } break;
     case int8Literal: {
+      sz = 1;
       os << "  mov eax, " << int(((Int8Literal *)t)->Value) << '\n';
     } break;
     case int16Literal: {
+      sz = 2;
       os << "  mov eax, " << ((Int16Literal *)t)->Value << '\n';
     } break;
     case int32Literal: {
+      sz = 4;
       os << "  mov eax, " << ((Int32Literal *)t)->Value << '\n';
     } break;
     case int64Literal: {
+      sz = 8;
       os << "  mov rax, " << ((Int64Literal *)t)->Value << '\n';
     } break;
     case addressOf: {
+      sz = 8;
       AddressOf *u = (AddressOf *)t;
       if (!vars.contains(u->Name)) {
         throw std::runtime_error("Cannot get the address of unknown symbol " + u->Name);
@@ -291,14 +371,17 @@ void generate(Node *t, std::ostream &os) {
         throw std::runtime_error("Cannot dereference unknown symbol " + u->Name);
       }
       Type type = vars[u->Name];
-      handle_mov("rax", type);
-      os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
-    };
+      sz = memory_needed(deref(type));
+      os << "  mov rax, qword[rbp-" << var_offset[u->Name] << "]\n";
+      handle_mov("rax", deref(type));
+      os << ", " << asm_keyword_for(deref(type)) << "[rax]\n";
+    } break;
     case functionCall: {
       FunctionCall *u = (FunctionCall *)t;
       if (!funcs.contains(u->Name)) {
         throw std::runtime_error("Cannot call function " + u->Name + " since it hasn't been defined");
       }
+      sz = memory_needed(funcs[u->Name].first->ReturnType);
       for (int i = 0; i < int(u->Params.size()); ++i) {
         self(self, u->Params[i]);
         // for now, just assume we're either a literal or variable
@@ -354,6 +437,7 @@ void generate(Node *t, std::ostream &os) {
         throw std::runtime_error("Cannot find symbol: " + u->Name);
       }
       Type type = vars[u->Name];
+      sz = memory_needed(type);
       handle_mov("rax", type);
       os << ", " << asm_keyword_for(type) << "[rbp-" << var_offset[u->Name] << "]\n";
     } break;
@@ -363,64 +447,70 @@ void generate(Node *t, std::ostream &os) {
       os << "  jmp " << func_label[cur_func] << ".end\n";
     } break;
     case equal: {
-      gen_cmp("sete");
+      gen_cmp("sete", sz);
     } break;
     case less: {
-      gen_cmp("setl");
+      gen_cmp("setl", sz);
     } break;
     case greater: {
-      gen_cmp("setg");
+      gen_cmp("setg", sz);
     } break;
     case lessEqual: {
-      gen_cmp("setle");
+      gen_cmp("setle", sz);
     } break;
     case greaterEqual: {
-      gen_cmp("setge");
+      gen_cmp("setge", sz);
     } break;
     case shiftLeft: {
-      gen_shift("sal");
+      gen_shift("sal", sz);
     } break;
     case shiftRight: {
-      gen_shift("sar");
+      gen_shift("sar", sz);
+    } break;
+    case bitwiseAnd: {
+      gen_bitwise("and", sz);
+    } break;
+    case bitwiseOr: {
+      gen_bitwise("or", sz);
     } break;
     case plus: {
       Binary *u = (Binary *)t;
-      self(self, u->Rhs);
+      sz = std::max(self(self, u->Rhs), sz);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  add rax, rbx\n";
     } break;
     case minus: {
       Binary *u = (Binary *)t;
-      self(self, u->Rhs);
+      sz = std::max(self(self, u->Rhs), sz);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  sub rax, rbx\n";
     } break;
     case multiply: {
       Binary *u = (Binary *)t;
-      self(self, u->Rhs);
+      sz = std::max(self(self, u->Rhs), sz);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  mul rbx\n";
     } break;
     case div: {
       Binary *u = (Binary *)t;
-      self(self, u->Rhs);
+      sz = std::max(self(self, u->Rhs), sz);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  xor edx, edx\n";
       os << "  div rbx\n";
     } break;
     case modulo: {
       Binary *u = (Binary *)t;
-      self(self, u->Rhs);
+      sz = std::max(self(self, u->Rhs), sz);
       os << "  push rax\n";
-      self(self, u->Lhs);
+      sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  xor edx, edx\n";
       os << "  div rbx\n";
@@ -439,6 +529,7 @@ void generate(Node *t, std::ostream &os) {
       While *u = (While *)t;
       self(self, u->Cond);
       int cnt = lbl_cnt++;
+      os << "  cmp rax, 0\n";
       os << "  jz .after_L" << cnt << '\n';
       os << ".begin_L" << cnt << ":\n";
       self(self, u->Body);
@@ -450,6 +541,7 @@ void generate(Node *t, std::ostream &os) {
     default: {
     } break;
     }
+    return sz;
   };
   gen(gen, t);
 

@@ -11,7 +11,7 @@ std::string av::to_string(av::NodeType type) {
     "Identifier", "Return", "Equal", "Less", "Greater",
     "LessEqual", "GreaterEqual", "ShiftLeft", "ShiftRight",
     "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo",
-    "If", "While"
+    "BitwiseAnd", "BitwiseOr", "If", "While"
   });
   return a[int(type)];
 }
@@ -87,10 +87,10 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
     t->Value->print(os, dep + 1);
   } break;
   case addressOf: {
-    os << "Name: " << ((AddressOf *)this)->Name << '\n';
+    os << tab << "Name: " << ((AddressOf *)this)->Name << '\n';
   } break;
   case dereference: {
-    os << "Name: " << ((Dereference *)this)->Name << '\n';
+    os << tab << "Name: " << ((Dereference *)this)->Name << '\n';
   } break;
   case functionCall: {
     FunctionCall *t = (FunctionCall *)this;
@@ -130,7 +130,9 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
   case minus:
   case multiply:
   case div:
-  case modulo: {
+  case modulo:
+  case bitwiseAnd:
+  case bitwiseOr: {
     os << tab << "Lhs:\n";
     ((Binary *)this)->Lhs->print(os, dep + 1);
     os << tab << "Rhs:\n";
