@@ -119,3 +119,7 @@ The language has a weak type system: this means you can cast pretty much anythin
 
 Each program needs the definition of `int32 main()` or it will fail to compile. To bypass this (for example, if you're just interested in the assembly for a particular function), use the `--s` flag while compiling.
 
+# License
+
+This project is released under the MIT License.
+
