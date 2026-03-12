@@ -528,13 +528,12 @@ void generate(Node *t, std::ostream &os) {
       While *u = (While *)t;
       self(self, u->Cond);
       int cnt = lbl_cnt++;
+      os << ".begin_L" << cnt << ":\n";
       os << "  cmp rax, 0\n";
       os << "  jz .after_L" << cnt << '\n';
-      os << ".begin_L" << cnt << ":\n";
       self(self, u->Body);
       self(self, u->Cond);
-      os << "  cmp rax, 0\n";
-      os << "  jnz .begin_L" << cnt << '\n';
+      os << "  jmp .begin_L" << cnt << '\n';
       os << ".after_L" << cnt << ":\n";
     } break;
     default: {
