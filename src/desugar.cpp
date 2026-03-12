@@ -5,7 +5,7 @@
 
 namespace av {
 
-void desugar(Node *t) {
+bool desugar(Node *t) {
   std::map<std::string, std::pair<FunctionDecl *, FunctionBody *>> funcs;
   auto rec = [&](auto &&self, Node *t) -> std::vector<Node *> {
     std::vector<Node *> ret;
@@ -37,6 +37,12 @@ void desugar(Node *t) {
       }
       funcs[u->Name].second = u;
     } break;
+    case ifNode: {
+      self(self, ((If *)t)->Body);
+    } break;
+    case whileNode: {
+      self(self, ((While *)t)->Body);
+    } break;
     default: {
       break;
     }
@@ -55,6 +61,7 @@ void desugar(Node *t) {
   } else {
     rec(rec, t);
   }
+  return funcs.contains("main");
 }
 
 } // namespace av

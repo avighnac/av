@@ -4,6 +4,6 @@
 
 namespace av {
 
-void desugar(Node *t);
+bool desugar(Node *t);
 
 }

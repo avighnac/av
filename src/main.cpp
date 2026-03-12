@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 bool command_exists(const std::string& cmd) {
@@ -71,21 +72,16 @@ int main(int argc, char **_argv) {
     av::tokenizer tk(code);
     av::Node *root = av::parse(tk);
     av::desugar(root);
-    std::cout << "section .text\n";
     av::generate(root, std::cout);
-    std::cout << "global _start\n";
-    std::cout << "_start:\n";
-    std::cout << "  call main\n";
-    std::cout << "  mov edi, eax\n";
-    std::cout << "  mov eax, 60\n";
-    std::cout << "  syscall\n";
     return 0;
   }
 
-  std::ofstream os(argv[1] + ".asm");
   av::tokenizer tk(code);
   av::Node *root = av::parse(tk);
-  av::desugar(root);
+  if (!av::desugar(root)) {
+    throw std::runtime_error("main() not found. Did you mean to compile with --s?");
+  }
+  std::stringstream os;
   os << "section .text\n";
   av::generate(root, os);
   os << "global _start\n";
@@ -94,7 +90,9 @@ int main(int argc, char **_argv) {
   os << "  mov edi, eax\n";
   os << "  mov eax, 60\n";
   os << "  syscall\n";
-  os.close();
+  std::ofstream oss(argv[1] + ".asm");
+  oss << os.str();
+  oss.close();
 
   if (!command_exists("nasm")) {
     std::cout << "[warning] nasm is not installed, stopping at the assembly emission step\n";

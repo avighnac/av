@@ -83,7 +83,7 @@ public:
   int has(const F &&f) {
     int ans = -1;
     for (int i = 0, bal = 0; i < int(tokens.size()) && ans == -1; ++i) {
-      bal += (tokens[i].type == Tk_OpenBrace) - (tokens[i].type == Tk_CloseBrace);
+      bal += (tokens[i].type == Tk_OpenBrace) + (tokens[i].type == Tk_OpenParen) - (tokens[i].type == Tk_CloseBrace) - (tokens[i].type == Tk_CloseParen);
       if (bal == 0 && f(tokens[i])) {
         ans = i;
       }

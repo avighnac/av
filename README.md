@@ -59,3 +59,42 @@ _start:
 ```
 
 Which is pretty great!
+
+# Features
+
+The language supports the following compiler intrinsics:
+
+- `int32 write(int32 fileno, void* mem, int32 bytes)`: writes bytes from `mem` to `fileno`
+- `int32 read(int32 fileno, void* mem, int32 bytes)`: reads bytes from `mem` to `fileno`
+- `void* alloca(int32 bytes)`: allocates `bytes` (rounded up to a multiple of 16) bytes on the stack
+
+The following language features are supported:
+
+- `if` statements, written like so:
+
+```av
+if (condition) {
+
+}
+```
+
+- `while` loops:
+
+```
+whlie (condition) {
+
+}
+```
+
+where `condition` is true if it is not equal to `0`.
+
+- Bitwise AND and OR (written like `a | b` and `a & b`).
+- Comparasions (<, >, <=, >=, etc.)
+- Arithmetic (+, -, *, %, etc.)
+
+Note that operator precedence may not work how you expect it to (definitely a feature). For example, this:
+
+`n * (n + 1) / 2`
+
+Evaluates to `n * ((n + 1) / 2)`, and not the expected `(n * (n + 1)) / 2`, for which you'd need parentheses.
+

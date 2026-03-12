@@ -11,6 +11,10 @@ Node *_parse(tokenizer &tk) {
   if (tk.size() == 0) {
     return nullptr;
   }
+  if (tk.size() >= 2 && tk[0].type == Tk_OpenParen && tk[tk.size() - 1].type == Tk_CloseParen) {
+    tk.get();
+    tk.pop_back();
+  }
   int bracepair_cnt = 0;
   for (int i = 0, bal = 0; i < tk.size(); ++i) {
     int pbal = bal;

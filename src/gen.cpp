@@ -91,6 +91,9 @@ std::string rax_for(int size) { return get_register("rax", size); }
 std::string rax_for(const Type &type) { return rax_for(memory_needed(type)); }
 
 int maximum_memory(Node *t) {
+  if (t == nullptr) {
+    return 0;
+  }
   int ans = 0;
   switch (t->type) {
   case block: {
@@ -254,9 +257,6 @@ void generate(Node *t, std::ostream &os) {
       auto Func_label = func_label;
       auto Var_offset = var_offset;
       auto Memory = memory;
-      if (u->Name == "print_int") {
-        int x = 2;
-      }
       int b = maximum_memory(u->Body);
       FunctionDecl *v = funcs[u->Name].first;
       // size needed for function arguments
