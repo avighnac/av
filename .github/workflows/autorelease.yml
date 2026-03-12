@@ -64,13 +64,15 @@ jobs:
         VERSION_=$(echo $TAG-alpha-$SUFFIX)
         YEAR=$(date +"%Y")
         RELEASE_NAME="av $VERSION_"
+        echo "VERSION_=$VERSION_" >> $GITHUB_ENV
+        echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
     - name: Create a GitHub release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ env.RELEASE_NAME }}
+        tag_name: ${{ env.VERSION_ }}
         release_name: ${{ env.RELEASE_NAME }}
         draft: false
         prerelease: true
