@@ -1,0 +1,85 @@
+name: autorelease
+
+on:
+  push:
+    branches: main
+
+jobs:
+  build-linux:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Install packages
+      run: |
+        sudo apt update
+        sudo apt install gcc
+        sudo apt install g++
+        sudo apt install cmake
+    - name: Set variables and compile
+      run: |
+        OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
+        ARCH=$(uname -m)
+        OS="$OS $ARCH"
+        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
+        SUFFIX=$((_temp+1))
+        COMPILEDON=$(date +"%d-%m-%Y")
+        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        YEAR=$(date +"%Y")
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          -DVERSION_="$VERSION_" \
+          -DOS="$OS" \
+          -DYEAR="$YEAR" \
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        mv build/src/av build/src/av-linux-x86-64
+    - name: Upload executable for linux-x86-64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-linux-x86-64
+        path: build/src/av-linux-x86-64
+  
+  create-release:
+    needs:
+      - build-linux
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Download executable for linux-x86-64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-linux-x86-64
+    - name: Set necessary variables
+      run: |
+        OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
+        ARCH=$(uname -m)
+        OS="$OS $ARCH"
+        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
+        SUFFIX=$((_temp+1))
+        COMPILEDON=$(date +"%d-%m-%Y")
+        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        YEAR=$(date +"%Y")
+        RELEASE_NAME="av $VERSION_"
+    - name: Create a GitHub release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.RELEASE_NAME }}
+        release_name: ${{ env.RELEASE_NAME }}
+        draft: false
+        prerelease: true
+    - name: Upload executable for linux-x86-64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-linux-x86-64
+        asset_name: av-linux-x86-64
+        asset_content_type: application/x-executable

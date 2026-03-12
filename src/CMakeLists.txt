@@ -1,5 +1,18 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(test)
+project(av)
 
-add_executable(test main.cpp ast.cpp tokenizer.cpp parser.cpp gen.cpp desugar.cpp)
+add_executable(av main.cpp ast.cpp tokenizer.cpp parser.cpp gen.cpp desugar.cpp)
+
+if (DEFINED VERSION_)
+  target_compile_definitions(av PRIVATE VERSION_="${VERSION_}")
+endif()
+if (DEFINED OS)
+  target_compile_definitions(av PRIVATE OS="${OS}")
+endif()
+if (DEFINED YEAR)
+  target_compile_definitions(av PRIVATE YEAR="${YEAR}")
+endif()
+if (DEFINED COMPILEDON)
+target_compile_definitions(av PRIVATE COMPILEDON="${COMPILEDON}")
+endif()
