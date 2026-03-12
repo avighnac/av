@@ -37,8 +37,8 @@ main:
   call write
   mov dword[rbp-13], eax
   mov eax, 0
-  jmp main__end
-main__end:
+  jmp main.end
+main.end:
   mov rsp, rbp
   pop rbp
   ret
