@@ -203,12 +203,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v6
-    - name: Install packages
-      run: |
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        /opt/homebrew/bin/brew install cmake
-        /opt/homebrew/bin/brew install gcc
-        /opt/homebrew/bin/brew install jq
     - name: Set variables and compile
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -230,9 +224,11 @@ jobs:
         COMPILEDON=$(date +"%d-%m-%Y")
         VERSION_="$TAG-alpha-$SUFFIX"
         YEAR=$(date +"%Y")
+        GXX=$(ls $(brew --prefix)/bin/g++-* | sort -V | tail -n1)
+        GCC=$(ls $(brew --prefix)/bin/gcc-* | sort -V | tail -n1)
         cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER="/opt/homebrew/bin/gcc-15" \
-          -DCMAKE_CXX_COMPILER="/opt/homebrew/bin/g++-15" \
+          -DCMAKE_C_COMPILER="$GCC" \
+          -DCMAKE_CXX_COMPILER="$GXX" \
           -DVERSION_="$VERSION_" \
           -DOS="$OS" \
           -DYEAR="$YEAR" \
@@ -245,6 +241,50 @@ jobs:
         name: av-macos-arm64
         path: build/src/av-macos-arm64
 
+  build-macos-x86:
+    permissions: write-all
+    runs-on: macos-26-intel
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        OS_=$(sw_vers -productName)" "$(sw_vers -productVersion)
+        ARCH=$(uname -m)
+        OS="$OS_ $ARCH"
+        TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        SUFFIX=$(
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          jq -r --arg base "$TAG" '
+            [.[].name
+            | select(startswith($base + "-alpha-"))
+            | sub("^" + $base + "-alpha-"; "")
+            | tonumber]
+            | (max // 0) + 1
+          '
+        )
+        COMPILEDON=$(date +"%d-%m-%Y")
+        VERSION_="$TAG-alpha-$SUFFIX"
+        YEAR=$(date +"%Y")
+        GXX=$(ls $(brew --prefix)/bin/g++-* | sort -V | tail -n1)
+        GCC=$(ls $(brew --prefix)/bin/gcc-* | sort -V | tail -n1)
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER="$GCC" \
+          -DCMAKE_CXX_COMPILER="$GXX" \
+          -DVERSION_="$VERSION_" \
+          -DOS="$OS" \
+          -DYEAR="$YEAR" \
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        mv build/src/av build/src/av-macos-x86-64
+    - name: Upload executable for macos-x86-64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-macos-x86-64
+        path: build/src/av-macos-x86-64
+
   create-release:
     needs:
       - build-linux-x86
@@ -252,6 +292,7 @@ jobs:
       - build-windows-x86
       - build-windows-arm64
       - build-macos-arm64
+      - build-macos-x86
     permissions: write-all
     runs-on: ubuntu-latest
     steps:
@@ -276,6 +317,10 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: av-macos-arm64
+    - name: Download executable for macos-x86-64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-macos-x86-64
     - name: Set necessary variables
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
@@ -352,4 +397,13 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: av-macos-arm64
         asset_name: av-macos-arm64
+        asset_content_type: application/x-executable
+    - name: Upload executable for macos-x86-64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-macos-x86-64
+        asset_name: av-macos-x86-64
         asset_content_type: application/x-executable
