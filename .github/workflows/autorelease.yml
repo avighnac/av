@@ -145,11 +145,111 @@ jobs:
         name: av-windows-x86-64.exe
         path: build/src/av-windows-x86-64.exe
 
+  build-windows-arm64:
+    permissions: write-all
+    runs-on: windows-11-arm
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Install packages
+      run: |
+        Invoke-WebRequest -OutFile file.zip https://github.com/mstorsjo/llvm-mingw/releases/download/20260311/llvm-mingw-20260311-ucrt-aarch64.zip
+        Expand-Archive file.zip -DestinationPath .
+    - name: Set variables and compile
+      run: |
+        $toolroot = Join-Path $PWD "llvm-mingw-20260311-ucrt-aarch64"
+        $OS_ = (Get-CimInstance Win32_OperatingSystem).Caption
+        $ARCH = $env:PROCESSOR_ARCHITECTURE
+        $OS = "$OS_ $ARCH"
+        $release = Invoke-RestMethod https://api.github.com/repos/avighnac/av/releases/latest
+        $TAG = $release.tag_name
+        $tags = Invoke-RestMethod https://api.github.com/repos/avighnac/av/tags?per_page=100
+        $nums = @(
+          $tags |
+            ForEach-Object { $_.name } |
+            Where-Object { $_ -like "$TAG-alpha-*" } |
+            ForEach-Object {
+              if ($_ -match "^$([regex]::Escape($TAG))-alpha-(\d+)$") {
+                [int]$matches[1]
+              }
+            }
+        )
+        if ($nums.Count -eq 0) {
+          $SUFFIX = 1
+        } else {
+          $SUFFIX = ($nums | Measure-Object -Maximum).Maximum + 1
+        }
+        $COMPILEDON = Get-Date -Format "dd-MM-yyyy"
+        $VERSION_ = "$TAG-alpha-$SUFFIX"
+        $YEAR = Get-Date -Format "yyyy"
+        cmake -S . -B build -G "MinGW Makefiles" `
+          -DCMAKE_C_COMPILER="$toolroot/bin/clang.exe" `
+          -DCMAKE_CXX_COMPILER="$toolroot/bin/clang++.exe" `
+          -DVERSION_="$VERSION_" `
+          -DOS="$OS" `
+          -DYEAR="$YEAR" `
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        Move-Item build/src/av.exe build/src/av-windows-arm64.exe
+    - name: Upload executable for windows-arm64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-windows-arm64.exe
+        path: build/src/av-windows-arm64.exe
+
+  build-macos-arm64:
+    permissions: write-all
+    runs-on: macos-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Install packages
+      run: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        /opt/homebrew/bin/brew install cmake
+        /opt/homebrew/bin/brew install gcc
+        /opt/homebrew/bin/brew install jq
+    - name: Set variables and compile
+      run: |
+        OS_=$(sw_vers -productName)" "$(sw_vers -productVersion)
+        ARCH=$(uname -m)
+        OS="$OS_ $ARCH"
+        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        SUFFIX=$(
+          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          jq -r --arg base "$TAG" '
+            [.[].name
+            | select(startswith($base + "-alpha-"))
+            | sub("^" + $base + "-alpha-"; "")
+            | tonumber]
+            | (max // 0) + 1
+          '
+        )
+        COMPILEDON=$(date +"%d-%m-%Y")
+        VERSION_="$TAG-alpha-$SUFFIX"
+        YEAR=$(date +"%Y")
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER="/opt/homebrew/bin/gcc-15" \
+          -DCMAKE_CXX_COMPILER="/opt/homebrew/bin/g++-15" \
+          -DVERSION_="$VERSION_" \
+          -DOS="$OS" \
+          -DYEAR="$YEAR" \
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        mv build/src/av build/src/av-macos-arm64
+    - name: Upload executable for macos-arm64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-macos-arm64
+        path: build/src/av-macos-arm64
+
   create-release:
     needs:
       - build-linux-x86
       - build-linux-arm64
       - build-windows-x86
+      - build-windows-arm64
+      - build-macos-arm64
     permissions: write-all
     runs-on: ubuntu-latest
     steps:
@@ -166,6 +266,14 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: av-windows-x86-64.exe
+    - name: Download executable for windows-arm64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-windows-arm64.exe
+    - name: Download executable for macos-arm64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-macos-arm64
     - name: Set necessary variables
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
@@ -224,4 +332,22 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: av-windows-x86-64.exe
         asset_name: av-windows-x86-64.exe
+        asset_content_type: application/x-executable
+    - name: Upload executable for windows-arm64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-windows-arm64.exe
+        asset_name: av-windows-arm64.exe
+        asset_content_type: application/x-executable
+    - name: Upload executable for macos-arm64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-macos-arm64
+        asset_name: av-macos-arm64
         asset_content_type: application/x-executable
