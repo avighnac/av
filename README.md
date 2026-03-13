@@ -4,6 +4,16 @@
 
 You can find dev logs and language specification in `/spec`.
 
+# Installation
+
+To install `av` on macOS or Linux, run:
+
+```bash
+curl -fsSL https://avighnac.com/av/install | bash
+```
+
+For windows users, nagivate over to `https://github.com/avighnac/av/releases` and download the `.exe` file for the release of your choice.
+
 ---
 
 The compiler's developed sufficiently to be able to compile the following `.av` code:

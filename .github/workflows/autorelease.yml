@@ -18,13 +18,15 @@ jobs:
         sudo apt install g++
         sudo apt install cmake
     - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
         ARCH=$(uname -m)
         OS="$OS_ $ARCH"
-        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
         SUFFIX=$(
-          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
           jq -r --arg base "$TAG" '
             [.[].name
             | select(startswith($base + "-alpha-"))
@@ -62,13 +64,15 @@ jobs:
         sudo apt install g++
         sudo apt install cmake
     - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
         ARCH=$(uname -m)
         OS="$OS_ $ARCH"
-        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
         SUFFIX=$(
-          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
           jq -r --arg base "$TAG" '
             [.[].name
             | select(startswith($base + "-alpha-"))
@@ -104,6 +108,8 @@ jobs:
         Invoke-WebRequest -OutFile file.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/15.2.0posix-13.0.0-ucrt-r6/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r6.zip
         Expand-Archive file.zip -DestinationPath .
     - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         $toolroot = Join-Path $PWD "mingw64"
         $OS_ = (Get-CimInstance Win32_OperatingSystem).Caption
@@ -156,14 +162,19 @@ jobs:
         Invoke-WebRequest -OutFile file.zip https://github.com/mstorsjo/llvm-mingw/releases/download/20260311/llvm-mingw-20260311-ucrt-aarch64.zip
         Expand-Archive file.zip -DestinationPath .
     - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         $toolroot = Join-Path $PWD "llvm-mingw-20260311-ucrt-aarch64"
+        $headers = @{
+          Authorization = "Bearer $env:GITHUB_TOKEN"
+        }
         $OS_ = (Get-CimInstance Win32_OperatingSystem).Caption
         $ARCH = $env:PROCESSOR_ARCHITECTURE
         $OS = "$OS_ $ARCH"
-        $release = Invoke-RestMethod https://api.github.com/repos/avighnac/av/releases/latest
+        $release = Invoke-RestMethod -Headers $headers https://api.github.com/repos/avighnac/av/releases/latest
         $TAG = $release.tag_name
-        $tags = Invoke-RestMethod https://api.github.com/repos/avighnac/av/tags?per_page=100
+        $tags = Invoke-RestMethod -Headers $headers https://api.github.com/repos/avighnac/av/tags?per_page=100
         $nums = @(
           $tags |
             ForEach-Object { $_.name } |
