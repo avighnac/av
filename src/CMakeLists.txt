@@ -6,6 +6,7 @@ add_executable(av main.cpp ast.cpp tokenizer.cpp parser.cpp gen.cpp desugar.cpp)
 
 if (DEFINED VERSION_)
   target_compile_definitions(av PRIVATE VERSION_="${VERSION_}")
+  target_link_options(av PRIVATE -static -static-libstdc++ -static-libgcc)
 endif()
 if (DEFINED OS)
   target_compile_definitions(av PRIVATE OS="${OS}")

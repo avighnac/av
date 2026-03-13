@@ -5,7 +5,7 @@ on:
     branches: main
 
 jobs:
-  build-linux:
+  build-linux-x86:
     permissions: write-all
     runs-on: ubuntu-latest
     steps:
@@ -40,10 +40,85 @@ jobs:
       with:
         name: av-linux-x86-64
         path: build/src/av-linux-x86-64
-  
+
+  build-linux-arm64:
+    permissions: write-all
+    runs-on: ubuntu-24.04-arm
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Install packages
+      run: |
+        sudo apt update
+        sudo apt install gcc
+        sudo apt install g++
+        sudo apt install cmake
+    - name: Set variables and compile
+      run: |
+        OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
+        ARCH=$(uname -m)
+        OS="$OS $ARCH"
+        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
+        SUFFIX=$((_temp+1))
+        COMPILEDON=$(date +"%d-%m-%Y")
+        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        YEAR=$(date +"%Y")
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          -DVERSION_="$VERSION_" \
+          -DOS="$OS" \
+          -DYEAR="$YEAR" \
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        mv build/src/av build/src/av-linux-arm64
+    - name: Upload executable for linux-arm64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-linux-arm64
+        path: build/src/av-linux-arm64
+
+  build-windows-x86:
+    permissions: write-all
+    runs-on: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Install packages
+      run: |
+        Invoke-WebRequest -OutFile file.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/15.2.0posix-13.0.0-ucrt-r6/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r6.zip
+        Expand-Archive file.zip -DestinationPath .
+        $toolroot = Join-Path $PWD "mingw64"
+        $OS_ = (Get-CimInstance Win32_OperatingSystem).Caption
+        $ARCH = $env:PROCESSOR_ARCHITECTURE
+        $OS = "$OS_ $ARCH"
+        $release = Invoke-RestMethod https://api.github.com/repos/avighnac/av/releases/latest
+        $TAG = $release.tag_name
+        $tags = Invoke-RestMethod https://api.github.com/repos/avighnac/av/tags?per_page=100
+        $temp = ($tags.name).IndexOf($TAG)
+        $SUFFIX = [int]$temp + 1
+        $COMPILEDON = Get-Date -Format "dd-MM-yyyy"
+        $VERSION_ = "$TAG-alpha-$SUFFIX"
+        $YEAR = Get-Date -Format "yyyy"
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_C_COMPILER="$toolroot/bin/gcc.exe" `
+          -DCMAKE_CXX_COMPILER="$toolroot/bin/g++.exe" `
+          -DVERSION_="$VERSION_" `
+          -DOS="$OS" `
+          -DYEAR="$YEAR" `
+          -DCOMPILEDON="$COMPILEDON"
+        cmake --build build
+        Move-Item build/src/av.exe build/src/av-windows-x86-64.exe
+    - name: Upload executable for windows-x86-64
+      uses: actions/upload-artifact@v4
+      with:
+        name: av-windows-x86-64.exe
+        path: build/src/av-windows-x86-64.exe
+
   create-release:
     needs:
-      - build-linux
+      - build-linux-x86
+      - build-linux-arm64
+      - build-windows-x86
     permissions: write-all
     runs-on: ubuntu-latest
     steps:
@@ -52,6 +127,14 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: av-linux-x86-64
+    - name: Download executable for linux-arm64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-linux-arm64
+    - name: Download executable for windows-x86-64
+      uses: actions/download-artifact@v4
+      with:
+        name: av-windows-x86-64.exe
     - name: Set necessary variables
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
@@ -84,4 +167,22 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: av-linux-x86-64
         asset_name: av-linux-x86-64
+        asset_content_type: application/x-executable
+    - name: Upload executable for linux-arm64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-linux-arm64
+        asset_name: av-linux-arm64
+        asset_content_type: application/x-executable
+    - name: Upload executable for windows-x86-64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: av-windows-x86-64.exe
+        asset_name: av-windows-x86-64.exe
         asset_content_type: application/x-executable
