@@ -21,12 +21,20 @@ jobs:
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
         ARCH=$(uname -m)
-        OS="$OS $ARCH"
+        OS="$OS_ $ARCH"
         TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
-        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
-        SUFFIX=$((_temp+1))
+        SUFFIX=$(
+          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          jq -r --arg base "$TAG" '
+            [.[].name
+            | select(startswith($base + "-alpha-"))
+            | sub("^" + $base + "-alpha-"; "")
+            | tonumber]
+            | (max // 0) + 1
+          '
+        )
         COMPILEDON=$(date +"%d-%m-%Y")
-        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        VERSION_="$TAG-alpha-$SUFFIX"
         YEAR=$(date +"%Y")
         cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
           -DVERSION_="$VERSION_" \
@@ -57,12 +65,20 @@ jobs:
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
         ARCH=$(uname -m)
-        OS="$OS $ARCH"
+        OS="$OS_ $ARCH"
         TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
-        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
-        SUFFIX=$((_temp+1))
+        SUFFIX=$(
+          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          jq -r --arg base "$TAG" '
+            [.[].name
+            | select(startswith($base + "-alpha-"))
+            | sub("^" + $base + "-alpha-"; "")
+            | tonumber]
+            | (max // 0) + 1
+          '
+        )
         COMPILEDON=$(date +"%d-%m-%Y")
-        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        VERSION_="$TAG-alpha-$SUFFIX"
         YEAR=$(date +"%Y")
         cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
           -DVERSION_="$VERSION_" \
@@ -96,8 +112,21 @@ jobs:
         $release = Invoke-RestMethod https://api.github.com/repos/avighnac/av/releases/latest
         $TAG = $release.tag_name
         $tags = Invoke-RestMethod https://api.github.com/repos/avighnac/av/tags?per_page=100
-        $temp = ($tags.name).IndexOf($TAG)
-        $SUFFIX = [int]$temp + 1
+        $nums = @(
+          $tags |
+            ForEach-Object { $_.name } |
+            Where-Object { $_ -like "$TAG-alpha-*" } |
+            ForEach-Object {
+              if ($_ -match "^$([regex]::Escape($TAG))-alpha-(\d+)$") {
+                [int]$matches[1]
+              }
+            }
+        )
+        if ($nums.Count -eq 0) {
+          $SUFFIX = 1
+        } else {
+          $SUFFIX = ($nums | Measure-Object -Maximum).Maximum + 1
+        }
         $COMPILEDON = Get-Date -Format "dd-MM-yyyy"
         $VERSION_ = "$TAG-alpha-$SUFFIX"
         $YEAR = Get-Date -Format "yyyy"
@@ -141,12 +170,20 @@ jobs:
       run: |
         OS_=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
         ARCH=$(uname -m)
-        OS="$OS $ARCH"
+        OS="$OS_ $ARCH"
         TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
-        _temp=$(curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" | jq --arg tag "$TAG" '[.[].name] | index($tag)')
-        SUFFIX=$((_temp+1))
+        SUFFIX=$(
+          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          jq -r --arg base "$TAG" '
+            [.[].name
+            | select(startswith($base + "-alpha-"))
+            | sub("^" + $base + "-alpha-"; "")
+            | tonumber]
+            | (max // 0) + 1
+          '
+        )
         COMPILEDON=$(date +"%d-%m-%Y")
-        VERSION_=$(echo $TAG-alpha-$SUFFIX)
+        VERSION_="$TAG-alpha-$SUFFIX"
         YEAR=$(date +"%Y")
         RELEASE_NAME="av $VERSION_"
         echo "VERSION_=$VERSION_" >> $GITHUB_ENV
