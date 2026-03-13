@@ -87,8 +87,16 @@ if (condition) {
 - `while` loops:
 
 ```
-whlie (condition) {
+while (condition) {
 
+}
+```
+
+- `for` loops:
+
+```
+for (condition) {
+  
 }
 ```
 

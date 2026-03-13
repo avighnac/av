@@ -28,7 +28,7 @@ Node *_parse(tokenizer &tk) {
     while (tk.peek()) {
       Token token = tk.get();
       stmt.push_back(token);
-      bal += (token.type == Tk_OpenBrace) - (token.type == Tk_CloseBrace);
+      bal += (token.type == Tk_OpenBrace) + (token.type == Tk_OpenParen) - (token.type == Tk_CloseBrace) - (token.type == Tk_CloseParen);
       if ((token.type == Tk_Semicolon || token.type == Tk_CloseBrace) && bal == 0) {
         if (token.type == Tk_Semicolon) {
           stmt.pop_back();
@@ -37,15 +37,6 @@ Node *_parse(tokenizer &tk) {
         if (stmt[0].type == Tk_OpenBrace && stmt[stmt.size() - 1].type == Tk_CloseBrace) {
           stmt.get();
           stmt.pop_back();
-        }
-        // desugar `int32 x = 5`
-        if (stmt.size() >= 3 && stmt[0].type == Tk_Type && stmt[1].type == Tk_Identifier && stmt[2].type == Tk_Assign) {
-          tokenizer left;
-          left.push_back(stmt.get());
-          Token token = stmt.get();
-          left.push_back(token);
-          t->stmts.push_back(_parse(left));
-          stmt.push_front(token);
         }
         t->stmts.push_back(_parse(stmt));
         stmt.clear();
@@ -258,6 +249,54 @@ Node *_parse(tokenizer &tk) {
     tk.get();
     tk.pop_back();
     t->Body = _parse(tk);
+    return t;
+  }
+  // for: desugar to while
+  if (tk.size() >= 1 && tk[0].type == Tk_For) {
+    if (tk.size() == 1 || tk[1].type != Tk_OpenParen) {
+      throw std::runtime_error("Expected a statement after 'for'");
+    }
+    int bal = 1;
+    tk.get();
+    tk.get();
+    tokenizer middle;
+    while (bal != 0) {
+      Token token = tk.get();
+      bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
+      middle.push_back(token);
+    }
+    middle.pop_back();
+
+    std::vector<tokenizer> parts;
+    tokenizer part;
+    for (int i = 0; i < middle.size(); ++i) {
+      if (middle[i].type == Tk_Semicolon) {
+        parts.push_back(part);
+        part.clear();
+        continue;
+      }
+      part.push_back(middle[i]);
+    }
+    parts.push_back(part);
+
+    if (parts.size() != 3) {
+      throw std::runtime_error("for (...) conditions invalid (need exactly 3 statements)");
+    }
+
+    tk.get();
+    tk.pop_back();
+    for (int i = 0; i < parts[2].size(); ++i) {
+      tk.push_back(parts[2][i]);
+    }
+    Token token;
+    token.type = Tk_Semicolon;
+    tk.push_back(token);
+    Block *t = new Block();
+    t->stmts.push_back(_parse(parts[0]));
+    While *w = new While();
+    w->Cond = _parse(parts[1]);
+    w->Body = _parse(tk);
+    t->stmts.push_back(w);
     return t;
   }
   // unaryMinus

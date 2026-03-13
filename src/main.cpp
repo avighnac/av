@@ -20,7 +20,8 @@ void print_help(const std::string &name) {
   std::cout << "  --help: prints this message\n";
   std::cout << "  --version: prints the version number\n";
   std::cout << "  -tokenize: Tokenizes the file\n";
-  std::cout << "  -ast: Prints the AST\n";
+  std::cout << "  -ast: Prints the AST (without desugaring)\n";
+  std::cout << "  --ast: Prints the AST (after desugaring)\n";
   std::cout << "  -s: Prints the asm\n";
 }
 
@@ -41,14 +42,17 @@ int main(int argc, char **_argv) {
     argv[i] = _argv[i];
   }
 
+  // argc = 3;
+  // argv = {"./test", "/home/avighna/shared/Desktop/av/build/src/test.av", "--ast"};
+
   if (argc == 1) {
     print_help(argv[0]);
     return 0;
   }
 
   std::vector<std::string> files;
-  std::array<std::string, 5> options{"-tokenize", "-ast", "-s", "--help", "--version"};
-  std::array values{false, false, false, false, false};
+  std::array<std::string, 6> options{"-tokenize", "-ast", "-s", "--help", "--version", "--ast"};
+  std::array values{false, false, false, false, false, false};
   for (int i = 1; i < argc; ++i) {
     int it = std::find(options.begin(), options.end(), argv[i]) - options.begin();
     if (it != options.size()) {
@@ -114,6 +118,13 @@ int main(int argc, char **_argv) {
     std::cout << *root;
     delete root;
   }
+  if (values[5]) {
+    av::tokenizer tk(code);
+    av::Node *root = av::parse(tk);
+    av::desugar(root);
+    std::cout << *root;
+    delete root;
+  }
 
   if (values[2]) {
     av::tokenizer tk(code);
@@ -121,6 +132,10 @@ int main(int argc, char **_argv) {
     av::desugar(root);
     av::generate(root, std::cout);
     delete root;
+    return 0;
+  }
+
+  if (values[0] || values[1] || values[2] || values[5]) {
     return 0;
   }
 

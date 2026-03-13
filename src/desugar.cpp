@@ -25,6 +25,20 @@ bool desugar(Node *t) {
       FunctionDecl *u = (FunctionDecl *)t;
       funcs[u->Name].first = u;
     } break;
+    case assign: {
+      // desugar `int32 x = 5`
+      Assign *u = (Assign *)t;
+      if (u->To->type != variableDecl) {
+        break;
+      }
+      Assign *assign = new Assign();
+      Identifier *ident = new Identifier();
+      ident->Name = ((VariableDecl *)u->To)->Name;
+      assign->To = ident;
+      assign->Value = std::exchange(u->Value, nullptr);
+      ret.push_back(u->To);
+      ret.push_back(assign);
+    } break;
     case functionBody: {
       FunctionBody *u = (FunctionBody *)t;
       if (!funcs.contains(u->Name)) {
@@ -36,6 +50,7 @@ bool desugar(Node *t) {
         ret.push_back(decl);
       }
       funcs[u->Name].second = u;
+      self(self, u->Body);
     } break;
     case ifNode: {
       self(self, ((If *)t)->Body);
@@ -47,7 +62,9 @@ bool desugar(Node *t) {
       break;
     }
     }
-    ret.push_back(t);
+    if (t->type != assign || ((Assign *)t)->To->type != variableDecl) {
+      ret.push_back(t);
+    }
     return ret;
   };
   if (t->type == block) {
