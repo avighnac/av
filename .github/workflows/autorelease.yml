@@ -268,8 +268,10 @@ jobs:
         COMPILEDON=$(date +"%d-%m-%Y")
         VERSION_="$TAG-alpha-$SUFFIX"
         YEAR=$(date +"%Y")
-        GXX=$(ls $(brew --prefix)/bin/g++-* | sort -V | tail -n1)
-        GCC=$(ls $(brew --prefix)/bin/gcc-* | sort -V | tail -n1)
+        GCC_MAJOR=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
+        GCC_MAJOR=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
+        GCC="$(brew --prefix)/bin/gcc-$GCC_MAJOR"
+        GXX="$(brew --prefix)/bin/g++-$GCC_MAJOR"
         cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_C_COMPILER="$GCC" \
           -DCMAKE_CXX_COMPILER="$GXX" \
