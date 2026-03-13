@@ -210,13 +210,15 @@ jobs:
         /opt/homebrew/bin/brew install gcc
         /opt/homebrew/bin/brew install jq
     - name: Set variables and compile
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         OS_=$(sw_vers -productName)" "$(sw_vers -productVersion)
         ARCH=$(uname -m)
         OS="$OS_ $ARCH"
-        TAG=$(curl -s "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
+        TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/releases/latest" | jq -r '.tag_name')
         SUFFIX=$(
-          curl -s "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/avighnac/av/tags?per_page=100" |
           jq -r --arg base "$TAG" '
             [.[].name
             | select(startswith($base + "-alpha-"))
