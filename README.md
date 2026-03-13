@@ -95,12 +95,12 @@ while (condition) {
 - `for` loops:
 
 ```
-for (condition) {
-  
+for (init; condition; incr) {
+
 }
 ```
 
-where `condition` is true if it is not equal to `0`.
+where `condition` is true if it is not equal to `0`, and `init` and `incr` can be any statements.
 
 - Bitwise AND and OR (written like `a | b` and `a & b`).
 - Comparasions (<, >, <=, >=, etc.)
