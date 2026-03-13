@@ -42,8 +42,8 @@ int main(int argc, char **_argv) {
     argv[i] = _argv[i];
   }
 
-  // argc = 3;
-  // argv = {"./test", "/home/avighna/shared/Desktop/av/build/src/test.av", "--ast"};
+  // argc = 2;
+  // argv = {"./test", "/home/avighna/shared/Desktop/av/build/src/test.av"};
 
   if (argc == 1) {
     print_help(argv[0]);
@@ -66,7 +66,7 @@ int main(int argc, char **_argv) {
   }
 
   if (values[3]) {
-    print_help(argv[1]);
+    print_help(argv[0]);
     return 0;
   }
   if (values[4]) {

@@ -11,7 +11,8 @@ std::string av::to_string(av::NodeType type) {
     "Identifier", "Return", "Equal", "Less", "Greater",
     "LessEqual", "GreaterEqual", "ShiftLeft", "ShiftRight",
     "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo",
-    "BitwiseAnd", "BitwiseOr", "If", "While"
+    "BitwiseAnd", "BitwiseOr", "LogicalNeg", "If", "ElseIf", "Else", "While",
+    "IfElseBlock"
   });
   return a[int(type)];
 }
@@ -50,74 +51,77 @@ std::ostream &av::operator<<(std::ostream &os, const std::vector<T> &v) {
   return os << "]";
 }
 
-std::ostream &av::Node::print(std::ostream &os, int dep) const {
+std::ostream &av::print(const Node *u, std::ostream &os, int dep) {
+  if (u == nullptr) {
+    return os;
+  }
   std::string tab(dep, ' ');
-  os << tab << av::to_string(type) << '\n';
-  switch (type) {
+  os << tab << av::to_string(u->type) << '\n';
+  switch (u->type) {
   case block: {
-    for (Node *&i : ((Block *)this)->stmts) {
-      i->print(os, dep + 1);
+    for (Node *&i : ((Block *)u)->stmts) {
+      print(i, os, dep + 1);
     }
   } break;
   case functionDecl: {
-    FunctionDecl *t = (FunctionDecl *)this;
+    FunctionDecl *t = (FunctionDecl *)u;
     os << tab << "Name: " << t->Name << '\n';
     os << tab << "ReturnType: " << t->ReturnType << '\n';
     os << tab << "ParamTypes: " << t->ParamTypes << '\n';
   } break;
   case functionBody: {
-    FunctionBody *t = (FunctionBody *)this;
+    FunctionBody *t = (FunctionBody *)u;
     os << tab << "Name: " << t->Name << '\n';
     os << tab << "ReturnType: " << t->ReturnType << '\n';
     os << tab << "ParamTypes: " << t->ParamTypes << '\n';
     os << tab << "Params: " << t->Params << '\n';
     os << tab << "Body:\n";
-    t->Body->print(os, dep + 1);
+    print(t->Body, os, dep + 1);
   } break;
   case variableDecl: {
-    VariableDecl *t = (VariableDecl *)this;
+    VariableDecl *t = (VariableDecl *)u;
     os << tab << "Name: " << t->Name << '\n';
     os << tab << "Type: " << t->VariableType << '\n';
   } break;
   case assign: {
-    Assign *t = (Assign *)this;
+    Assign *t = (Assign *)u;
     os << tab << "To:\n";
-    t->To->print(os, dep + 1);
+    print(t->To, os, dep + 1);
     os << tab << "Value:\n";
-    t->Value->print(os, dep + 1);
+    print(t->Value, os, dep + 1);
   } break;
   case addressOf: {
-    os << tab << "Name: " << ((AddressOf *)this)->Name << '\n';
+    os << tab << "Name: " << ((AddressOf *)u)->Name << '\n';
   } break;
   case dereference: {
-    os << tab << "Name: " << ((Dereference *)this)->Name << '\n';
+    os << tab << "Name: " << ((Dereference *)u)->Name << '\n';
   } break;
   case functionCall: {
-    FunctionCall *t = (FunctionCall *)this;
+    FunctionCall *t = (FunctionCall *)u;
     os << tab << "Name: " << t->Name << '\n';
     os << tab << "Params:\n";
     for (Node *&i : t->Params) {
-      i->print(os, dep + 1);
+      print(i, os, dep + 1);
     }
   } break;
   case identifier: {
-    os << tab << "Name: " << ((Identifier *)this)->Name << '\n';
+    os << tab << "Name: " << ((Identifier *)u)->Name << '\n';
   } break;
   case int8Literal: {
-    os << tab << "Value: " << int(((Int8Literal *)this)->Value) << '\n';
+    os << tab << "Value: " << int(((Int8Literal *)u)->Value) << '\n';
   } break;
   case int16Literal: {
-    os << tab << "Value: " << ((Int16Literal *)this)->Value << '\n';
+    os << tab << "Value: " << ((Int16Literal *)u)->Value << '\n';
   } break;
   case int32Literal: {
-    os << tab << "Value: " << ((Int32Literal *)this)->Value << '\n';
+    os << tab << "Value: " << ((Int32Literal *)u)->Value << '\n';
   } break;
   case int64Literal: {
-    os << tab << "Value: " << ((Int64Literal *)this)->Value << '\n';
+    os << tab << "Value: " << ((Int64Literal *)u)->Value << '\n';
   } break;
   case returnNode: {
     os << tab << "Value:\n";
-    ((Return *)this)->Value->print(os, dep + 1);
+    print(((Return *)u)->Value, os, dep + 1);
   } break;
   case equal:
   case less:
@@ -134,32 +138,55 @@ std::ostream &av::Node::print(std::ostream &os, int dep) const {
   case bitwiseAnd:
   case bitwiseOr: {
     os << tab << "Lhs:\n";
-    ((Binary *)this)->Lhs->print(os, dep + 1);
+    print(((Binary *)u)->Lhs, os, dep + 1);
     os << tab << "Rhs:\n";
-    ((Binary *)this)->Rhs->print(os, dep + 1);
+    print(((Binary *)u)->Rhs, os, dep + 1);
   } break;
   case unaryMinus: {
     os << tab << "To:\n";
-    ((UnaryMinus *)this)->To->print(os, dep + 1);
+    print(((UnaryMinus *)u)->To, os, dep + 1);
+  } break;
+  case logicalNegate: {
+    os << tab << "To:\n";
+    print(((LogicalNegate *)u)->To, os, dep + 1);
   } break;
   case ifNode: {
-    If *t = (If *)this;
+    If *t = (If *)u;
     os << tab << "Cond:\n";
-    t->Cond->print(os, dep + 1);
+    print(t->Cond, os, dep + 1);
     os << tab << "Body:\n";
-    t->Body->print(os, dep + 1);
+    print(t->Body, os, dep + 1);
+  } break;
+  case elseIf: {
+    ElseIf *t = (ElseIf *)u;
+    os << tab << "Cond:\n";
+    print(t->Cond, os, dep + 1);
+    os << tab << "Body:\n";
+    print(t->Body, os, dep + 1);
+  } break;
+  case elseNode: {
+    Else *t = (Else *)u;
+    os << tab << "Body:\n";
+    print(t->Body, os, dep + 1);
+  } break;
+  case ifElseBlock: {
+    IfElseBlock *t = (IfElseBlock *)u;
+    os << tab << "Conds:\n";
+    for (Node *&i : t->Conds) {
+      print(i, os, dep + 1);
+    }
   } break;
   case whileNode: {
-    While *t = (While *)this;
+    While *t = (While *)u;
     os << tab << "Cond:\n";
-    t->Cond->print(os, dep + 1);
+    print(t->Cond, os, dep + 1);
     os << tab << "Body:\n";
-    t->Body->print(os, dep + 1);
+    print(t->Body, os, dep + 1);
   } break;
   }
   return os;
 }
 
 std::ostream &av::operator<<(std::ostream &os, const av::Node &t) {
-  return t.print(os);
+  return print(&t, os);
 }

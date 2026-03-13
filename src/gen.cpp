@@ -472,6 +472,18 @@ void generate(Node *t, std::ostream &os) {
     case bitwiseOr: {
       gen_bitwise("or", sz);
     } break;
+    case unaryMinus: {
+      UnaryMinus *u = (UnaryMinus *)t;
+      self(self, u->To);
+      os << "  neg rax\n";
+    } break;
+    case logicalNegate: {
+      LogicalNegate *u = (LogicalNegate *)t;
+      self(self, u->To);
+      os << "  cmp rax, 0\n";
+      os << "  sete al\n"; 
+      os << "  movzx eax, al\n"; 
+    } break;
     case plus: {
       Binary *u = (Binary *)t;
       sz = std::max(self(self, u->Rhs), sz);
@@ -535,6 +547,34 @@ void generate(Node *t, std::ostream &os) {
       self(self, u->Cond);
       os << "  jmp .begin_L" << cnt << '\n';
       os << ".after_L" << cnt << ":\n";
+    } break;
+    case ifElseBlock: {
+      int lbl = lbl_cnt++;
+      IfElseBlock *u = (IfElseBlock *)t;
+      for (int i = 0; i < int(u->Conds.size()); ++i) {
+        if (i != 0) {
+          os << ".cond" << i << "_L" << lbl << ":\n";
+        }
+        if (u->Conds[i]->type == ifNode) { // if
+          If *c = (If *)u->Conds[i];
+          self(self, c->Cond);
+          os << "  cmp rax, 0\n";
+          os << "  jz .cond" << i + 1 << "_L" << lbl << '\n';
+          self(self, c->Body);
+          os << "  jmp .after_L" << lbl << '\n';
+        } else if (u->Conds[i]->type == elseIf) { // else if
+          ElseIf *c = (ElseIf *)u->Conds[i];
+          self(self, c->Cond);
+          os << "  cmp rax, 0\n";
+          os << "  jz .cond" << i + 1 << "_L" << lbl << '\n';
+          self(self, c->Body);
+          os << "  jmp .after_L" << lbl << '\n';
+        } else { // else
+          Else *c = (Else *)u->Conds[i];
+          self(self, c->Body);
+        }
+      }
+      os << ".after_L" << lbl << ":\n";
     } break;
     default: {
     } break;

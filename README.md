@@ -76,18 +76,14 @@ The language supports the following compiler intrinsics:
 
 The following language features are supported:
 
-- `if` statements, written like so:
+- `if`, `else if`, `else` statements, written like so:
 
 ```av
 if (condition) {
 
-}
-```
+} else if (condition) {
 
-- `while` loops:
-
-```
-while (condition) {
+} else {
 
 }
 ```
@@ -100,9 +96,18 @@ for (init; condition; incr) {
 }
 ```
 
+- `while` loops:
+
+```
+while (condition) {
+
+}
+```
+
 where `condition` is true if it is not equal to `0`, and `init` and `incr` can be any statements.
 
 - Bitwise AND and OR (written like `a | b` and `a & b`).
+- Logical negation (written like `~x`), **which is different from C** that would write `!x`.
 - Comparasions (<, >, <=, >=, etc.)
 - Arithmetic (+, -, *, %, etc.)
 

@@ -22,6 +22,7 @@ enum TokenType {
   Tk_Underscore,
   Tk_LogicalAnd,
   Tk_LogicalOr,
+  Tk_LogicalNegate,
   Tk_Return,
   Tk_Equal,
   Tk_Less,
@@ -37,6 +38,7 @@ enum TokenType {
   Tk_PlusPlus,
   Tk_MinusMinus,
   Tk_If,
+  Tk_Else,
   Tk_While,
   Tk_For,
   __count_TokenType

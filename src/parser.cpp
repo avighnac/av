@@ -229,6 +229,41 @@ Node *_parse(tokenizer &tk) {
     t->Body = _parse(tk);
     return t;
   }
+  // else if
+  if (tk.size() >= 2 && tk[0].type == Tk_Else && tk[1].type == Tk_If) {
+    tk.get();
+    if (tk.size() == 1 || tk[1].type != Tk_OpenParen) {
+      throw std::runtime_error("Expected a statement after 'else if'");
+    }
+    int bal = 1;
+    tk.get();
+    tk.get();
+    tokenizer cond;
+    while (bal != 0) {
+      Token token = tk.get();
+      bal += (token.type == Tk_OpenParen) - (token.type == Tk_CloseParen);
+      cond.push_back(token);
+    }
+    cond.pop_back();
+    ElseIf *t = new ElseIf();
+    t->Cond = _parse(cond);
+    tk.get();
+    tk.pop_back();
+    t->Body = _parse(tk);
+    return t;
+  }
+  // else
+  if (tk.size() >= 1 && tk[0].type == Tk_Else) {
+    if (tk.size() == 1 || tk[1].type != Tk_OpenBrace) {
+      throw std::runtime_error("Expected a block after 'else'");
+    }
+    tk.get();
+    tk.get();
+    tk.pop_back();
+    Else *t = new Else();
+    t->Body = _parse(tk);
+    return t;
+  }
   // while
   if (tk.size() >= 1 && tk[0].type == Tk_While) {
     if (tk.size() == 1 || tk[1].type != Tk_OpenParen) {
@@ -285,23 +320,29 @@ Node *_parse(tokenizer &tk) {
 
     tk.get();
     tk.pop_back();
-    for (int i = 0; i < parts[2].size(); ++i) {
-      tk.push_back(parts[2][i]);
-    }
-    Token token;
-    token.type = Tk_Semicolon;
-    tk.push_back(token);
     Block *t = new Block();
     t->stmts.push_back(_parse(parts[0]));
     While *w = new While();
     w->Cond = _parse(parts[1]);
-    w->Body = _parse(tk);
+    Block *bodyBlock = new Block();
+    bodyBlock->stmts.push_back(_parse(tk));
+    Block *body = new Block();
+    body->stmts.push_back(bodyBlock);
+    body->stmts.push_back(_parse(parts[2]));
+    w->Body = body;
     t->stmts.push_back(w);
     return t;
   }
   // unaryMinus
   if (tk.size() >= 1 && tk[0].type == Tk_Minus) {
     UnaryMinus *t = new UnaryMinus();
+    tk.get();
+    t->To = _parse(tk);
+    return t;
+  }
+  // logical negate
+  if (tk.size() >= 1 && tk[0].type == Tk_LogicalNegate) {
+    LogicalNegate *t = new LogicalNegate();
     tk.get();
     t->To = _parse(tk);
     return t;

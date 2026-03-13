@@ -12,7 +12,7 @@ bool is_keyword(std::string s) {
   static std::array<std::string, __count_TokenType> a({
     "int8", "int16", "int32", "int64", "void", "int8*",
     "int16*", "int32*", "int64*", "void*", "return", "if",
-    "while", "for"
+    "else", "while", "for"
   });
   return find(a.begin(), a.end(), s) != a.end();
 }
@@ -21,10 +21,10 @@ std::string to_string(TokenType token) {
   static const std::array<std::string, int(av::__count_TokenType)> a({
     "Datatype", "Identifier", "Number", "Assign", "Semicolon",
     "OpenParen", "CloseParen", "OpenBrace", "CloseBrace",
-    "Amp", "Bar", "Comma", "Star", "Underscore", "LogicalAnd", "LogicalOr",
+    "Amp", "Bar", "Comma", "Star", "Underscore", "LogicalAnd", "LogicalOr", "LogicalNegate",
     "Return", "Equal", "Less", "Greater", "LessEqual", "GreaterEqual",
     "ShiftLeft", "ShiftRight", "Plus", "Minus", "Div", "Percent", "PlusPlus",
-    "MinusMinus", "If", "While", "For"
+    "MinusMinus", "If", "Else", "While", "For"
   });
   return a[int(token)];
 }
@@ -80,6 +80,11 @@ Token tokenizer::get_() {
     if (token.token == "if") {
       token.token.clear();
       token.type = Tk_If;
+      return token;
+    }
+    if (token.token == "else") {
+      token.token.clear();
+      token.type = Tk_Else;
       return token;
     }
     if (token.token == "while") {
@@ -150,6 +155,11 @@ Token tokenizer::get_() {
   if (c == '%') {
     advance();
     token.type = Tk_Percent;
+    return token;
+  }
+    if (c == '~') {
+    advance();
+    token.type = Tk_LogicalNegate;
     return token;
   }
 

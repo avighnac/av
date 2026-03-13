@@ -56,8 +56,12 @@ enum NodeType {
   modulo,
   bitwiseAnd,
   bitwiseOr,
+  logicalNegate,
   ifNode,
+  elseIf,
+  elseNode,
   whileNode,
+  ifElseBlock,
   __count_NodeType
 };
 
@@ -74,9 +78,9 @@ struct Node {
   NodeType type;
   Node(NodeType type) : type(type) {}
   virtual ~Node() = default;
-  std::ostream &print(std::ostream &os, int dep = 0) const;
 };
 
+std::ostream &print(const Node *u, std::ostream &os, int dep = 0);
 std::ostream &operator<<(std::ostream &os, const Node &t);
 
 struct Block : Node {
@@ -228,6 +232,14 @@ struct UnaryMinus : Node {
   }
 };
 
+struct LogicalNegate : Node {
+  Node *To;
+  LogicalNegate() : To(nullptr), Node(logicalNegate) {}
+  ~LogicalNegate() {
+    delete To;
+  }
+};
+
 struct Minus : Binary {
   Minus() : Binary(minus) {}
 };
@@ -260,6 +272,29 @@ struct If : Node {
     delete Cond;
     delete Body;
   }
+};
+
+struct ElseIf : Node {
+  Node *Cond;
+  Node *Body;
+  ElseIf() : Cond(nullptr), Body(nullptr), Node(elseIf) {}
+  ~ElseIf() {
+    delete Cond;
+    delete Body;
+  }
+};
+
+struct Else : Node {
+  Node *Body;
+  Else() : Body(nullptr), Node(elseNode) {}
+  ~Else() {
+    delete Body;
+  }
+};
+
+struct IfElseBlock : Node {
+  std::vector<Node *> Conds;
+  IfElseBlock() : Node(ifElseBlock) {}
 };
 
 struct While : Node {
