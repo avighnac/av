@@ -508,7 +508,7 @@ void generate(Node *t, std::ostream &os) {
       os << "  push rax\n";
       sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
-      os << "  mul rbx\n";
+      os << "  imul rbx\n";
     } break;
     case div: {
       Binary *u = (Binary *)t;
@@ -517,7 +517,7 @@ void generate(Node *t, std::ostream &os) {
       sz = std::max(self(self, u->Lhs), sz);
       os << "  pop rbx\n";
       os << "  xor edx, edx\n";
-      os << "  div rbx\n";
+      os << "  idiv rbx\n";
     } break;
     case modulo: {
       Binary *u = (Binary *)t;
@@ -540,13 +540,12 @@ void generate(Node *t, std::ostream &os) {
     } break;
     case whileNode: {
       While *u = (While *)t;
-      self(self, u->Cond);
       int cnt = lbl_cnt++;
       os << ".begin_L" << cnt << ":\n";
+      self(self, u->Cond);
       os << "  cmp rax, 0\n";
       os << "  jz .after_L" << cnt << '\n';
       self(self, u->Body);
-      self(self, u->Cond);
       os << "  jmp .begin_L" << cnt << '\n';
       os << ".after_L" << cnt << ":\n";
     } break;
