@@ -11,8 +11,8 @@ std::string av::to_string(av::NodeType type) {
     "Identifier", "Return", "Equal", "Less", "Greater",
     "LessEqual", "GreaterEqual", "ShiftLeft", "ShiftRight",
     "Plus", "Minus", "UnaryMinus", "Multiply", "Div", "Modulo",
-    "BitwiseAnd", "BitwiseOr", "LogicalNeg", "If", "ElseIf", "Else", "While",
-    "IfElseBlock"
+    "BitwiseAnd", "BitwiseOr", "LogicalNeg", "If", "ElseIf", "Else",
+    "While", "IfElseBlock"
   });
   return a[int(type)];
 }

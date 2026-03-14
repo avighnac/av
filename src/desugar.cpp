@@ -1,5 +1,6 @@
 #include "desugar.hpp"
 #include "ast.hpp"
+#include "errors.hpp"
 #include <map>
 #include <utility>
 
@@ -16,7 +17,7 @@ bool desugar(Node *t) {
       if_block.clear();
       return t;
     }
-    IfElseBlock *block = new IfElseBlock();
+    IfElseBlock *block = new IfElseBlock(if_block[0]->s, if_block.back()->e);
     block->Conds.swap(if_block);
     return block;
   };
@@ -48,12 +49,12 @@ bool desugar(Node *t) {
             if_block.push_back(des[0]);
           } else if (des[0]->type == elseIf) {
             if (if_block.empty()) {
-              throw std::runtime_error("Cannot use else if without an if before it");
+              throw Error("expected 'if' before 'else if'", des[0]->s, des[0]->e);
             }
             if_block.push_back(des[0]);
           } else if (des[0]->type == elseNode) {
             if (if_block.empty()) {
-              throw std::runtime_error("Cannot use else if without an if before it");
+              throw Error("expected 'if' before 'else'", des[0]->s, des[0]->e);
             }
             if_block.push_back(des[0]);
             push();
@@ -79,9 +80,9 @@ bool desugar(Node *t) {
       if (u->To->type != variableDecl) {
         break;
       }
-      Assign *assign = new Assign();
-      Identifier *ident = new Identifier();
+      Identifier *ident = new Identifier(((VariableDecl *)u->To)->s, ((VariableDecl *)u->To)->e);
       ident->Name = ((VariableDecl *)u->To)->Name;
+      Assign *assign = new Assign(u->s, u->e);
       assign->To = ident;
       assign->Value = std::exchange(u->Value, nullptr);
       ret.push_back(u->To);
@@ -91,7 +92,7 @@ bool desugar(Node *t) {
       FunctionBody *u = (FunctionBody *)t;
       if (!funcs.contains(u->Name)) {
         // create a functionDecl
-        FunctionDecl *decl = new FunctionDecl();
+        FunctionDecl *decl = new FunctionDecl(u->s, u->e);
         decl->Name = u->Name;
         decl->ParamTypes = u->ParamTypes;
         decl->ReturnType = u->ReturnType;
@@ -121,23 +122,7 @@ bool desugar(Node *t) {
     }
     return ret;
   };
-  // if (t->type == block) {
-  //   std::vector<Node *> res = rec(rec, t);
-  //   Block *flat = new Block();
-  //   for (int i = 0; i < int(res.size()); ++i) {
-  //     if (res[i]->type != block) {
-  //       flat->stmts.push_back(res[i]);
-  //     } else {
-  //       for (Node *&j : ((Block*)res[i])->stmts) {
-  //         flat->stmts.push_back(j);
-  //       }
-  //       ((Block*)res[i])->stmts.clear();
-  //     }
-  //   }
-  //   t = flat;
-  // } else {
-    rec(rec, t);
-  // }
+  rec(rec, t);
   return funcs.contains("main");
 }
 

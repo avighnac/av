@@ -1,4 +1,5 @@
 #include "tokenizer.hpp"
+#include "errors.hpp"
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -64,103 +65,98 @@ std::string tokenizer::get_number() {
 
 Token tokenizer::get_() {
   skip_space();
-  Token token;
+  Token token(ptr_);
   char c = peek_();
 
   if (std::isalpha(c)) {
     if (!is_keyword(token.token = get_word())) {
       token.type = Tk_Identifier;
-      return token;
+      return token.set(ptr_);
     }
     if (token.token == "return") {
-      token.token.clear();
       token.type = Tk_Return;
-      return token;
+      return token.set(ptr_);
     }
     if (token.token == "if") {
-      token.token.clear();
       token.type = Tk_If;
-      return token;
+      return token.set(ptr_);
     }
     if (token.token == "else") {
-      token.token.clear();
       token.type = Tk_Else;
-      return token;
+      return token.set(ptr_);
     }
     if (token.token == "while") {
-      token.token.clear();
       token.type = Tk_While;
-      return token;
+      return token.set(ptr_);
     }
     if (token.token == "for") {
-      token.token.clear();
       token.type = Tk_For;
-      return token;
+      return token.set(ptr_);
     }
     token.type = Tk_Type; // right now the only keywords are types
-    return token;
+    return token.set(ptr_);
   }
 
   if (std::isdigit(c)) {
     token.type = Tk_Number;
     token.token = get_number();
-    return token;
+    return token.set(ptr_);
   }
 
   if (c == ';') {
     advance();
     token.type = Tk_Semicolon;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '(') {
     advance();
     token.type = Tk_OpenParen;
-    return token;
+    return token.set(ptr_);
   }
   if (c == ')') {
     advance();
     token.type = Tk_CloseParen;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '{') {
     advance();
     token.type = Tk_OpenBrace;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '}') {
     advance();
     token.type = Tk_CloseBrace;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '_') {
     advance();
     token.type = Tk_Underscore;
-    return token;
+    return token.set(ptr_);
   }
   if (c == ',') {
     advance();
     token.type = Tk_Comma;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '*') {
     advance();
     token.type = Tk_Star;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '/') {
     advance();
     token.type = Tk_Div;
-    return token;
+    return token.set(ptr_);
   }
   if (c == '%') {
     advance();
     token.type = Tk_Percent;
-    return token;
+    return token.set(ptr_);
   }
-    if (c == '~') {
+  if (c == '~') {
     advance();
     token.type = Tk_LogicalNegate;
-    return token;
+    return token.set(ptr_);
   }
 
   if (c == '&') {
@@ -171,7 +167,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Amp;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '|') {
     advance();
@@ -181,7 +177,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Bar;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '+') {
     advance();
@@ -191,7 +187,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Plus;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '-') {
     advance();
@@ -201,7 +197,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Minus;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '=') {
     advance();
@@ -211,7 +207,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Assign;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '<') {
     advance();
@@ -224,7 +220,7 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Less;
     }
-    return token;
+    return token.set(ptr_);
   }
   if (c == '>') {
     advance();
@@ -237,10 +233,10 @@ Token tokenizer::get_() {
     } else {
       token.type = Tk_Greater;
     }
-    return token;
+    return token.set(ptr_);
   }
 
-  throw std::runtime_error("Syntax error");
+  throw Error("unrecognized token", token.s, ptr_);
 }
 
 bool tokenizer::peek() { return !tokens.empty(); }

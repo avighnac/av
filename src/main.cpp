@@ -1,9 +1,11 @@
 #include "ast.hpp"
 #include "desugar.hpp"
+#include "errors.hpp"
 #include "gen.hpp"
 #include "parser.hpp"
 #include "tokenizer.hpp"
 #include <algorithm>
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -36,14 +38,49 @@ void print_version() {
 #endif
 }
 
+std::string white(const std::string &s) { return "\033[1;37m" + s + "\033[0m"; }
+std::string red(const std::string &s) { return "\033[1;31m" + s + "\033[0m"; }
+std::string blue(const std::string &s) { return "\033[1;36m" + s + "\033[0m"; }
+
+std::vector<std::string> lines;
+void print_error(std::ostream &os, std::string file, int r1, int c1, int r2, int c2, std::string err) {
+  std::string l = std::to_string(r1);
+  os << white(file) << white(":") << white(l) << white(":") << white(std::to_string(c1));
+  if (r1 != r2) {
+    os << white("-") << white(std::to_string(r2)) << white(":") << white(std::to_string(c2));
+  }
+  os << white(": ") << red("error: ") << err << '\n';
+
+  if (r1 == r2) {
+    os << " " << l << " | " << lines[r1 - 1] << '\n';
+    c1 += 3 + l.length(), c2 += 3 + l.length();
+    for (int i = 0; i < lines[r1 - 1].length() + 3 + l.length(); ++i) {
+      if (i == c1) {
+        os << red("^");
+      } else if (i >= c1 && i <= c2) {
+        os << red("~");
+      } else {
+        os << ' ';
+      }
+    }
+    return;
+  }
+
+  int len = std::to_string(r2 - 1).length();
+  auto fix = [&](const std::string &s) { return std::string(len - s.length(), '0') + s; };
+  for (int r = r1 - 1; r <= r2 - 1; ++r) {
+    os << " " << fix(std::to_string(r)) << " | " << (r == r1 - 1 ? red(lines[r]) : blue(lines[r]));
+    if (r != r2 - 1) {
+      os << '\n';
+    }
+  }
+}
+
 int main(int argc, char **_argv) {
   std::vector<std::string> argv(argc);
   for (int i = 0; i < argc; ++i) {
     argv[i] = _argv[i];
   }
-
-  // argc = 2;
-  // argv = {"./test", "/home/avighna/shared/Desktop/av/build/src/test.av"};
 
   if (argc == 1) {
     print_help(argv[0]);
@@ -75,7 +112,7 @@ int main(int argc, char **_argv) {
   }
 
   if (files.size() == 0) {
-    std::cerr << "error: no input file specified\n";
+    std::cerr << red("error: ") << "no input file specified\n";
     return 1;
   }
   if (files.size() != 1) {
@@ -85,7 +122,7 @@ int main(int argc, char **_argv) {
 
   std::ifstream f(files[0], std::ios::binary);
   if (!f) {
-    std::cerr << "error: file " << files[0] << " does not exist.\n";
+    std::cerr << red("error: ") << "file " << files[0] << " does not exist.\n";
     return 1;
   }
   f.seekg(0, std::ios::end);
@@ -97,66 +134,128 @@ int main(int argc, char **_argv) {
   }
   f.close();
 
-  if (values[0]) {
-    av::tokenizer tk(code);
-    while (tk.peek()) {
-      av::Token token = tk.get();
-      std::cout << token.token;
-      if (token.token.empty()) {
-        std::cout << token.type;
-      } else {
-        std::cout << "(" << token.type << ")";
-      }
-      std::cout << ' ';
+  std::vector<int> line_ends = {-1};
+  std::string line;
+  for (int i = 0; i < size; ++i) {
+    if (code[i] == '\n') {
+      line_ends.push_back(i);
+      lines.push_back(line);
+      line.clear();
+    } else {
+      line.push_back(code[i]);
     }
-    std::cout << '\n';
+  }
+  lines.push_back(line);
+  auto get_rc = [&](int loc) -> std::pair<int, int> {
+    // 'a' 'b' 'c' '\n' 'd'
+    //  0.  1.  2.   3.  4
+    auto it = std::lower_bound(line_ends.begin(), line_ends.end(), loc);
+    int r = it - line_ends.begin();
+    int c = loc - line_ends[r - 1];
+    return {r, c};
+  };
+
+  if (values[0]) {
+    try {
+      av::tokenizer tk(code);
+      while (tk.peek()) {
+        av::Token token = tk.get();
+        std::cout << token.token;
+        if (token.token.empty()) {
+          std::cout << token.type;
+        } else {
+          std::cout << "(" << token.type << ")";
+        }
+        std::cout << ' ';
+      }
+      std::cout << '\n';
+    } catch (av::Error e) {
+      auto [r1, c1] = get_rc(e.s());
+      auto [r2, c2] = get_rc(e.e());
+      print_error(std::cerr, files[0], r1, c1, r2, c2, e.what());
+      std::cerr << "\n\ncompilation failed.\n";
+      return 1;
+    }
   }
 
   if (values[1]) {
-    av::tokenizer tk(code);
-    av::Node *root = av::parse(tk);
-    std::cout << *root;
-    delete root;
+    try {
+      av::tokenizer tk(code);
+      av::Node *root = av::parse(tk);
+      std::cout << *root;
+      delete root;
+    } catch (av::Error e) {
+      auto [r1, c1] = get_rc(e.s());
+      auto [r2, c2] = get_rc(e.e());
+      print_error(std::cerr, files[0], r1, c1, r2, c2, e.what());
+      std::cerr << "\n\ncompilation failed.\n";
+      return 1;
+    }
   }
   if (values[5]) {
-    av::tokenizer tk(code);
-    av::Node *root = av::parse(tk);
-    av::desugar(root);
-    std::cout << *root;
-    delete root;
+    try {
+      av::tokenizer tk(code);
+      av::Node *root = av::parse(tk);
+      av::desugar(root);
+      std::cout << *root;
+      delete root;
+    } catch (av::Error e) {
+      auto [r1, c1] = get_rc(e.s());
+      auto [r2, c2] = get_rc(e.e());
+      print_error(std::cerr, files[0], r1, c1, r2, c2, e.what());
+      std::cerr << "\n\ncompilation failed.\n";
+      return 1;
+    }
   }
 
   if (values[2]) {
-    av::tokenizer tk(code);
-    av::Node *root = av::parse(tk);
-    av::desugar(root);
-    av::generate(root, std::cout);
-    delete root;
-    return 0;
+    try {
+      av::tokenizer tk(code);
+      av::Node *root = av::parse(tk);
+      av::desugar(root);
+      av::generate(root, std::cout);
+      delete root;
+      return 0;
+    } catch (av::Error e) {
+      auto [r1, c1] = get_rc(e.s());
+      auto [r2, c2] = get_rc(e.e());
+      print_error(std::cerr, files[0], r1, c1, r2, c2, e.what());
+      std::cerr << "\n\ncompilation failed.\n";
+      return 1;
+    }
   }
 
   if (values[0] || values[1] || values[2] || values[5]) {
     return 0;
   }
 
-  av::tokenizer tk(code);
-  av::Node *root = av::parse(tk);
-  if (!av::desugar(root)) {
-    throw std::runtime_error("main() not found. Did you mean to compile with --s?");
+  try {
+    av::tokenizer tk(code);
+    av::Node *root = av::parse(tk);
+    if (!av::desugar(root)) {
+      std::cerr << red("error: ") << "int32 main() not found; did you mean to compile with -s?\n";
+      return 1;
+    }
+    std::stringstream os;
+    os << "section .text\n";
+    av::generate(root, os);
+    os << "global _start\n";
+    os << "_start:\n";
+    os << "  call main\n";
+    os << "  mov edi, eax\n";
+    os << "  mov eax, 60\n";
+    os << "  syscall\n";
+    std::ofstream oss(argv[1] + ".asm");
+    oss << os.str();
+    oss.close();
+    delete root;
+  } catch (av::Error e) {
+    auto [r1, c1] = get_rc(e.s());
+    auto [r2, c2] = get_rc(e.e());
+    print_error(std::cerr, files[0], r1, c1, r2, c2, e.what());
+    std::cerr << "\n\ncompilation failed.\n";
+    return 1;
   }
-  std::stringstream os;
-  os << "section .text\n";
-  av::generate(root, os);
-  os << "global _start\n";
-  os << "_start:\n";
-  os << "  call main\n";
-  os << "  mov edi, eax\n";
-  os << "  mov eax, 60\n";
-  os << "  syscall\n";
-  std::ofstream oss(argv[1] + ".asm");
-  oss << os.str();
-  oss.close();
-  delete root;
 
   if (!command_exists("nasm")) {
     std::cerr << "warning: nasm is not installed, stopping at the assembly emission step\n";

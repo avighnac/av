@@ -1,12 +1,12 @@
 #pragma once
 
+#include "tokenizer.hpp"
 #include <array>
-#include <vector>
-#include <string>
-#include <ostream>
 #include <concepts>
 #include <cstdint>
-#include "tokenizer.hpp"
+#include <ostream>
+#include <string>
+#include <vector>
 
 namespace av {
 
@@ -68,7 +68,7 @@ enum NodeType {
 std::string to_string(NodeType type);
 std::string to_string(Type type);
 template <typename T>
-  requires std::same_as<T, NodeType> || std::same_as<T, Type> 
+  requires std::same_as<T, NodeType> || std::same_as<T, Type>
 std::ostream &operator<<(std::ostream &os, const T &type);
 
 template <typename T>
@@ -76,7 +76,8 @@ std::ostream &operator<<(std::ostream &os, const std::vector<T> &v);
 
 struct Node {
   NodeType type;
-  Node(NodeType type) : type(type) {}
+  int s, e;
+  Node(NodeType type, int s, int e) : type(type), s(s), e(e) {}
   virtual ~Node() = default;
 };
 
@@ -85,7 +86,7 @@ std::ostream &operator<<(std::ostream &os, const Node &t);
 
 struct Block : Node {
   std::vector<Node *> stmts;
-  Block() : Node(block) {}
+  Block(int s, int e) : Node(block, s, e) {}
   ~Block() {
     for (Node *&i : stmts) {
       delete i;
@@ -97,7 +98,7 @@ struct FunctionDecl : Node {
   std::string Name;
   Type ReturnType;
   std::vector<Type> ParamTypes;
-  FunctionDecl() : Node(functionDecl) {}
+  FunctionDecl(int s, int e) : Node(functionDecl, s, e) {}
 };
 
 struct FunctionBody : Node {
@@ -106,7 +107,7 @@ struct FunctionBody : Node {
   std::vector<Type> ParamTypes;
   std::vector<std::string> Params;
   Node *Body;
-  FunctionBody() : Node(functionBody) {}
+  FunctionBody(int s, int e) : Node(functionBody, s, e) {}
   ~FunctionBody() {
     delete Body;
   }
@@ -115,13 +116,13 @@ struct FunctionBody : Node {
 struct VariableDecl : Node {
   std::string Name;
   Type VariableType;
-  VariableDecl() : Node(variableDecl) {}
+  VariableDecl(int s, int e) : Node(variableDecl, s, e) {}
 };
 
 struct Assign : Node {
   Node *To;
   Node *Value;
-  Assign() : Node(assign), To(nullptr), Value(nullptr) {}
+  Assign(int s, int e) : Node(assign, s, e), To(nullptr), Value(nullptr) {}
   ~Assign() {
     delete To;
     delete Value;
@@ -130,18 +131,18 @@ struct Assign : Node {
 
 struct AddressOf : Node {
   std::string Name;
-  AddressOf() : Node(addressOf) {}
+  AddressOf(int s, int e) : Node(addressOf, s, e) {}
 };
 
 struct Dereference : Node {
   std::string Name;
-  Dereference() : Node(dereference) {}
+  Dereference(int s, int e) : Node(dereference, s, e) {}
 };
 
 struct FunctionCall : Node {
   std::string Name;
   std::vector<Node *> Params;
-  FunctionCall() : Node(functionCall) {}
+  FunctionCall(int s, int e) : Node(functionCall, s, e) {}
   ~FunctionCall() {
     for (Node *&i : Params) {
       delete i;
@@ -151,32 +152,32 @@ struct FunctionCall : Node {
 
 struct Identifier : Node {
   std::string Name;
-  Identifier() : Node(identifier) {}
+  Identifier(int s, int e) : Node(identifier, s, e) {}
 };
 
 struct Int8Literal : Node {
   int8_t Value;
-  Int8Literal() : Node(int8Literal) {}
+  Int8Literal(int s, int e) : Node(int8Literal, s, e) {}
 };
 
 struct Int16Literal : Node {
   int16_t Value;
-  Int16Literal() : Node(int16Literal) {}
+  Int16Literal(int s, int e) : Node(int16Literal, s, e) {}
 };
 
 struct Int32Literal : Node {
   int32_t Value;
-  Int32Literal() : Node(int32Literal) {}
+  Int32Literal(int s, int e) : Node(int32Literal, s, e) {}
 };
 
 struct Int64Literal : Node {
   int64_t Value;
-  Int64Literal() : Node(int64Literal) {}
+  Int64Literal(int s, int e) : Node(int64Literal, s, e) {}
 };
 
 struct Return : Node {
   Node *Value;
-  Return() : Node(returnNode) {}
+  Return(int s, int e) : Node(returnNode, s, e) {}
   ~Return() {
     delete Value;
   }
@@ -185,7 +186,7 @@ struct Return : Node {
 struct Binary : Node {
   Node *Lhs;
   Node *Rhs;
-  Binary(const NodeType &type) : Node(type) {}
+  Binary(const NodeType &type, int s, int e) : Node(type, s, e) {}
   ~Binary() {
     delete Lhs;
     delete Rhs;
@@ -193,40 +194,40 @@ struct Binary : Node {
 };
 
 struct Equal : Binary {
-  Equal() : Binary(equal) {}
+  Equal(int s, int e) : Binary(equal, s, e) {}
 };
 
 struct Less : Binary {
-  Less() : Binary(less) {}
+  Less(int s, int e) : Binary(less, s, e) {}
 };
 
 struct Greater : Binary {
-  Greater() : Binary(greater) {}
+  Greater(int s, int e) : Binary(greater, s, e) {}
 };
 
 struct LessEqual : Binary {
-  LessEqual() : Binary(lessEqual) {}
+  LessEqual(int s, int e) : Binary(lessEqual, s, e) {}
 };
 
 struct GreaterEqual : Binary {
-  GreaterEqual() : Binary(greaterEqual) {}
+  GreaterEqual(int s, int e) : Binary(greaterEqual, s, e) {}
 };
 
 struct ShiftLeft : Binary {
-  ShiftLeft() : Binary(shiftLeft) {}
+  ShiftLeft(int s, int e) : Binary(shiftLeft, s, e) {}
 };
 
 struct ShiftRight : Binary {
-  ShiftRight() : Binary(shiftRight) {}
+  ShiftRight(int s, int e) : Binary(shiftRight, s, e) {}
 };
 
 struct Plus : Binary {
-  Plus() : Binary(plus) {}
+  Plus(int s, int e) : Binary(plus, s, e) {}
 };
 
 struct UnaryMinus : Node {
   Node *To;
-  UnaryMinus() : To(nullptr), Node(unaryMinus) {}
+  UnaryMinus(int s, int e) : To(nullptr), Node(unaryMinus, s, e) {}
   ~UnaryMinus() {
     delete To;
   }
@@ -234,40 +235,40 @@ struct UnaryMinus : Node {
 
 struct LogicalNegate : Node {
   Node *To;
-  LogicalNegate() : To(nullptr), Node(logicalNegate) {}
+  LogicalNegate(int s, int e) : To(nullptr), Node(logicalNegate, s, e) {}
   ~LogicalNegate() {
     delete To;
   }
 };
 
 struct Minus : Binary {
-  Minus() : Binary(minus) {}
+  Minus(int s, int e) : Binary(minus, s, e) {}
 };
 
 struct Multiply : Binary {
-  Multiply() : Binary(multiply) {}
+  Multiply(int s, int e) : Binary(multiply, s, e) {}
 };
 
 struct Div : Binary {
-  Div() : Binary(div) {}
+  Div(int s, int e) : Binary(div, s, e) {}
 };
 
 struct Modulo : Binary {
-  Modulo() : Binary(modulo) {}
+  Modulo(int s, int e) : Binary(modulo, s, e) {}
 };
 
 struct BitwiseAnd : Binary {
-  BitwiseAnd() : Binary(bitwiseAnd) {}
+  BitwiseAnd(int s, int e) : Binary(bitwiseAnd, s, e) {}
 };
 
 struct BitwiseOr : Binary {
-  BitwiseOr() : Binary(bitwiseOr) {}
+  BitwiseOr(int s, int e) : Binary(bitwiseOr, s, e) {}
 };
 
 struct If : Node {
   Node *Cond;
   Node *Body;
-  If() : Cond(nullptr), Body(nullptr), Node(ifNode) {}
+  If(int s, int e) : Cond(nullptr), Body(nullptr), Node(ifNode, s, e) {}
   ~If() {
     delete Cond;
     delete Body;
@@ -277,7 +278,7 @@ struct If : Node {
 struct ElseIf : Node {
   Node *Cond;
   Node *Body;
-  ElseIf() : Cond(nullptr), Body(nullptr), Node(elseIf) {}
+  ElseIf(int s, int e) : Cond(nullptr), Body(nullptr), Node(elseIf, s, e) {}
   ~ElseIf() {
     delete Cond;
     delete Body;
@@ -286,7 +287,7 @@ struct ElseIf : Node {
 
 struct Else : Node {
   Node *Body;
-  Else() : Body(nullptr), Node(elseNode) {}
+  Else(int s, int e) : Body(nullptr), Node(elseNode, s, e) {}
   ~Else() {
     delete Body;
   }
@@ -294,13 +295,13 @@ struct Else : Node {
 
 struct IfElseBlock : Node {
   std::vector<Node *> Conds;
-  IfElseBlock() : Node(ifElseBlock) {}
+  IfElseBlock(int s, int e) : Node(ifElseBlock, s, e) {}
 };
 
 struct While : Node {
   Node *Cond;
   Node *Body;
-  While() : Cond(nullptr), Body(nullptr), Node(whileNode) {}
+  While(int s, int e) : Cond(nullptr), Body(nullptr), Node(whileNode, s, e) {}
   ~While() {
     delete Cond;
     delete Body;

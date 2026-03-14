@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <stdexcept>
 #include <string>
 
 namespace av {
@@ -48,8 +49,14 @@ std::string to_string(TokenType token);
 std::ostream &operator<<(std::ostream &os, const TokenType &token);
 
 struct Token {
+  int s, e;
   std::string token;
   TokenType type;
+  Token(int s) : s(s) {}
+  Token &set(int _e) {
+    e = _e;
+    return *this;
+  }
 };
 
 bool is_keyword(std::string s);

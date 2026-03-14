@@ -1,5 +1,6 @@
 #include "gen.hpp"
 #include "ast.hpp"
+#include "errors.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -16,9 +17,9 @@ int memory_needed(const Type &type) {
   return a[int(type)];
 }
 
-Type deref(const Type &type) {
+Type deref(const Type &type, int s, int e) {
   if (type == VoidPtr) {
-    throw std::runtime_error("Cannot dereference a void*");
+    throw Error("cannot dereference a void*", s, e);
   }
   if (type == Int8Ptr) {
     return Int8;
@@ -32,7 +33,7 @@ Type deref(const Type &type) {
   if (type == Int64Ptr) {
     return Int64;
   }
-  throw std::runtime_error("Can only dereference a ptr type");
+  throw Error("can only dereference a ptr type", s, e);
 }
 
 std::string asm_keyword_for(int sz) {
@@ -240,7 +241,7 @@ void generate(Node *t, std::ostream &os) {
     case functionBody: {
       FunctionBody *u = (FunctionBody *)t;
       if (!funcs.contains(u->Name)) {
-        throw std::runtime_error("Missing declaration for function " + u->Name + " before body");
+        throw Error("missing declaration for function " + u->Name + " before body", u->s, u->e);
       }
       funcs[u->Name].second = u;
       std::string prev_func = std::exchange(cur_func, u->Name);
@@ -304,7 +305,7 @@ void generate(Node *t, std::ostream &os) {
       VariableDecl *u = (VariableDecl *)t;
       memory += memory_needed(u->VariableType);
       if (vars.contains(u->Name)) {
-        throw std::runtime_error("Redefinition of symbol " + u->Name);
+        throw Error("redefinition of symbol " + u->Name, u->s, u->e);
       }
       vars[u->Name] = u->VariableType;
       var_offset[u->Name] = memory;
@@ -313,12 +314,12 @@ void generate(Node *t, std::ostream &os) {
       // let's just make our lives easy and assume lhs is *x or x
       Assign *u = (Assign *)t;
       if (u->To->type != dereference && u->To->type != identifier) {
-        throw std::runtime_error("Assigning to anything other than *x or x is invalid");
+        throw Error("assigning to anything other than *x or x is invalid", u->s, u->e);
       }
       if (u->To->type == identifier) {
         Identifier *ident = (Identifier *)u->To;
         if (!vars.contains(ident->Name)) {
-          throw std::runtime_error(ident->Name + ": unknown symbol");
+          throw Error(ident->Name + ": unknown symbol", ident->s, ident->e);
         }
         sz = memory_needed(vars[ident->Name]);
         // assume the codegen for rhs puts the result in rax
@@ -331,9 +332,9 @@ void generate(Node *t, std::ostream &os) {
         self(self, u->Value);
         std::string name = ((Dereference *)u->To)->Name;
         if (!vars.contains(name)) {
-          throw std::runtime_error("Cannot dereference unknown symbol " + name);
+          throw Error("cannot dereference unknown symbol " + name, u->s, u->e);
         }
-        Type type = deref(vars[name]);
+        Type type = deref(vars[name], u->s, u->e);
         sz = memory_needed(type);
         os << "  mov rbx, qword[rbp-" << var_offset[name] << "]\n";
         os << "  mov " << asm_keyword_for(sz) << "[rbx], "
@@ -360,32 +361,33 @@ void generate(Node *t, std::ostream &os) {
       sz = 8;
       AddressOf *u = (AddressOf *)t;
       if (!vars.contains(u->Name)) {
-        throw std::runtime_error("Cannot get the address of unknown symbol " + u->Name);
+        throw Error("cannot get the address of unknown symbol " + u->Name, u->s, u->e);
       }
       os << "  lea rax, [rbp-" << var_offset[u->Name] << "]\n";
     } break;
     case dereference: {
       Dereference *u = (Dereference *)t;
       if (!vars.contains(u->Name)) {
-        throw std::runtime_error("Cannot dereference unknown symbol " + u->Name);
+        throw Error("cannot dereference unknown symbol " + u->Name, u->s, u->e);
       }
       Type type = vars[u->Name];
-      sz = memory_needed(deref(type));
+      Type der = deref(type, u->s, u->e);
+      sz = memory_needed(der);
       os << "  mov rax, qword[rbp-" << var_offset[u->Name] << "]\n";
-      handle_mov("rax", deref(type));
-      os << ", " << asm_keyword_for(deref(type)) << "[rax]\n";
+      handle_mov("rax", der);
+      os << ", " << asm_keyword_for(der) << "[rax]\n";
     } break;
     case functionCall: {
       FunctionCall *u = (FunctionCall *)t;
       if (!funcs.contains(u->Name)) {
-        throw std::runtime_error("Cannot call function " + u->Name + " since it hasn't been defined");
+        throw Error("cannot call function " + u->Name + " since it hasn't been defined", u->s, u->e);
       }
       sz = memory_needed(funcs[u->Name].first->ReturnType);
       for (int i = 0; i < int(u->Params.size()); ++i) {
         self(self, u->Params[i]);
         // for now, just assume we're either a literal or variable
         if (!is_literal(u->Params[i]->type) && u->Params[i]->type != identifier) {
-          throw std::runtime_error("Function argument in function call " + u->Name + " has to be either a variable or a literal");
+          throw Error("function argument in function call " + u->Name + " has to be either a variable or a literal", u->s, u->e);
         }
         Type type;
         switch (u->Params[i]->type) {
@@ -403,7 +405,7 @@ void generate(Node *t, std::ostream &os) {
         } break;
         case identifier: {
           if (!vars.contains(((Identifier *)u->Params[i])->Name)) {
-            throw std::runtime_error("Unknown symbol: " + ((Identifier *)u->Params[i])->Name);
+            throw Error("unknown symbol: " + ((Identifier *)u->Params[i])->Name, ((Identifier *)u->Params[i])->s, ((Identifier *)u->Params[i])->e);
           }
           type = vars[((Identifier *)u->Params[i])->Name];
         } break;
@@ -433,7 +435,7 @@ void generate(Node *t, std::ostream &os) {
     case identifier: {
       Identifier *u = (Identifier *)t;
       if (!vars.contains(u->Name)) {
-        throw std::runtime_error("Cannot find symbol: " + u->Name);
+        throw Error("cannot find symbol: " + u->Name, u->s, u->e);
       }
       Type type = vars[u->Name];
       sz = memory_needed(type);
@@ -481,8 +483,8 @@ void generate(Node *t, std::ostream &os) {
       LogicalNegate *u = (LogicalNegate *)t;
       self(self, u->To);
       os << "  cmp rax, 0\n";
-      os << "  sete al\n"; 
-      os << "  movzx eax, al\n"; 
+      os << "  sete al\n";
+      os << "  movzx eax, al\n";
     } break;
     case plus: {
       Binary *u = (Binary *)t;
