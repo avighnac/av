@@ -1,3 +1,4 @@
+#include <iostream>
 #include "gen.hpp"
 #include "ast.hpp"
 #include "errors.hpp"
@@ -11,6 +12,15 @@
 #include <vector>
 
 namespace av {
+
+Platform platform_from_string(const std::string &s) {
+  if (s == "macos") {
+    return MacOS;
+  } else if (s == "linux") {
+    return Linux;
+  }
+  throw std::runtime_error("unknown platform: " + s);
+}
 
 int memory_needed(const Type &type) {
   static std::array<int, __count_Type> a({1, 2, 4, 8, 8, 8, 8, 8, 8, 0});
@@ -126,34 +136,29 @@ int maximum_memory(Node *t) {
 std::array compiler_intrinsics{
   "write", "read", "alloca"
 };
+
+std::array<std::array<int, 3>, 2> syscall_numbers = {{
+  {1, 0, -1},
+  {33554436, 33554435, -1}
+}};
 // clang-format on
-std::array intrinsic_code{
-    R"(write:    
-  mov eax, 1
-  syscall
-  ret
-)",
-    R"(read:    
-  xor eax, eax
-  syscall
-  ret
-)",
-    R"(alloca:   
-  pop rcx
-  add rdi, 15
-  and rdi, -16
-  sub rsp, rdi
-  mov rax, rsp
-  push rcx
-  ret
-)",
-};
+
+std::string get_intrinsic(const std::string &name, Platform platform) {
+  if (name == "write") {
+    return "write:\n  mov eax, " + std::to_string(syscall_numbers[int(platform)][0]) + "\n  syscall\n  ret\n";
+  } else if (name == "read") {
+    return "read:\n  mov eax, " + std::to_string(syscall_numbers[int(platform)][1]) + "\n  syscall\n  ret\n";
+  } else if (name == "alloca") {
+    return "alloca:\n  pop rcx\n  add rdi, 15\n  and rdi, -16\n  sub rsp, rdi\n  mov rax, rsp\n  push rcx\n  ret\n";
+  }
+  assert(false);
+}
 
 bool is_intrinsic(const std::string &s) {
   return std::find(compiler_intrinsics.begin(), compiler_intrinsics.end(), s) != compiler_intrinsics.end();
 }
 
-void generate(Node *t, std::ostream &os) {
+void generate(Node *t, Platform platform, std::ostream &os) {
   std::map<std::string, std::pair<FunctionDecl *, FunctionBody *>> funcs;
   std::map<std::string, Type> vars;
   std::map<std::string, std::string> func_label;
@@ -588,7 +593,7 @@ void generate(Node *t, std::ostream &os) {
   std::sort(used_intrinsics.begin(), used_intrinsics.end());
   used_intrinsics.erase(std::unique(used_intrinsics.begin(), used_intrinsics.end()), used_intrinsics.end());
   for (std::string &i : used_intrinsics) {
-    os << intrinsic_code[std::find(compiler_intrinsics.begin(), compiler_intrinsics.end(), i) - compiler_intrinsics.begin()];
+    os << get_intrinsic(i, platform);
   }
 }
 

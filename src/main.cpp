@@ -16,6 +16,29 @@ bool command_exists(const std::string &cmd) {
   return std::system(test.c_str()) == 0;
 }
 
+std::string platform() {
+#ifdef __APPLE__
+  return "macos";
+#elif _WIN32
+  return "windows"
+#elif __linux__
+  return "linux";
+#endif
+  return "unknown";
+}
+
+std::string def() {
+  std::string p = platform();
+  if (p != "linux" && p != "macos") {
+    p = "linux";
+  }
+  return p;
+}
+
+std::string white(const std::string &s) { return "\033[1m" + s + "\033[0m"; }
+std::string red(const std::string &s) { return "\033[1;31m" + s + "\033[0m"; }
+std::string blue(const std::string &s) { return "\033[1;36m" + s + "\033[0m"; }
+
 void print_help(const std::string &name) {
   std::cout << "Usage: " << name << " <filename.av>\n";
   std::cout << "Options:\n";
@@ -25,6 +48,9 @@ void print_help(const std::string &name) {
   std::cout << "  -ast: Prints the AST (without desugaring)\n";
   std::cout << "  --ast: Prints the AST (after desugaring)\n";
   std::cout << "  -s: Prints the asm\n";
+  std::cout << "\n";
+  std::cout << "Parameters:\n";
+  std::cout << "  -target=<platform>: default: " << white(def()) << ", can be either linux or macos\n";
 }
 
 void print_version() {
@@ -37,10 +63,6 @@ void print_version() {
   std::cout << "This is free software; there is absolutely NO warranty\n";
 #endif
 }
-
-std::string white(const std::string &s) { return "\033[1;37m" + s + "\033[0m"; }
-std::string red(const std::string &s) { return "\033[1;31m" + s + "\033[0m"; }
-std::string blue(const std::string &s) { return "\033[1;36m" + s + "\033[0m"; }
 
 std::vector<std::string> lines;
 void print_error(std::ostream &os, std::string file, int r1, int c1, int r2, int c2, std::string err) {
@@ -76,6 +98,15 @@ void print_error(std::ostream &os, std::string file, int r1, int c1, int r2, int
   }
 }
 
+std::string nasm_platform(const std::string &platform) {
+  if (platform == "linux") {
+    return "elf64";
+  } else if (platform == "macos") {
+    return "macho64";
+  }
+  assert(false);
+}
+
 int main(int argc, char **_argv) {
   std::vector<std::string> argv(argc);
   for (int i = 0; i < argc; ++i) {
@@ -87,17 +118,41 @@ int main(int argc, char **_argv) {
     return 0;
   }
 
-  std::vector<std::string> files;
+  std::vector<bool> used(argc);
   std::array<std::string, 6> options{"-tokenize", "-ast", "-s", "--help", "--version", "--ast"};
   std::array values{false, false, false, false, false, false};
   for (int i = 1; i < argc; ++i) {
     int it = std::find(options.begin(), options.end(), argv[i]) - options.begin();
     if (it != options.size()) {
+      used[i] = true;
       if (values[it]) {
         std::cerr << "warning: " << options[it] << " repeated\n";
       }
       values[it] = true;
-    } else {
+    }
+  }
+
+  std::array<std::string, 1> params{"-target="};
+  std::array<std::string, 1> choices = {};
+  for (int i = 1; i < argc; ++i) {
+    int it = std::find_if(params.begin(), params.end(), [&](const std::string &s) { return argv[i].find(s) == 0; }) - params.begin();
+    if (it == params.size()) {
+      continue;
+    }
+    used[i] = true;
+    if (!choices[it].empty()) {
+      std::cerr << red("error: ") << "parameter " << params[it].substr(0, params[it].length() - 1) << " specified more than 1 time\n";
+      return 1;
+    }
+    choices[it] = argv[i].substr(params[it].length());
+  }
+  if (choices[0].empty()) {
+    choices[0] = def();
+  }
+
+  std::vector<std::string> files;
+  for (int i = 1; i < argc; ++i) {
+    if (!used[i]) {
       files.push_back(argv[i]);
     }
   }
@@ -109,6 +164,11 @@ int main(int argc, char **_argv) {
   if (values[4]) {
     print_version();
     return 0;
+  }
+
+  if (choices[0] != "linux" && choices[0] != "macos") {
+    std::cerr << red("error: ") << "value " << choices[0] << " for parameter " << params[0] << " is invalid\n";
+    return 1;
   }
 
   if (files.size() == 0) {
@@ -213,7 +273,7 @@ int main(int argc, char **_argv) {
       av::tokenizer tk(code);
       av::Node *root = av::parse(tk);
       av::desugar(root);
-      av::generate(root, std::cout);
+      av::generate(root, av::platform_from_string(choices[0]), std::cout);
       delete root;
       return 0;
     } catch (av::Error e) {
@@ -238,12 +298,16 @@ int main(int argc, char **_argv) {
     }
     std::stringstream os;
     os << "section .text\n";
-    av::generate(root, os);
+    av::generate(root, av::platform_from_string(choices[0]), os);
     os << "global _start\n";
     os << "_start:\n";
     os << "  call main\n";
     os << "  mov edi, eax\n";
-    os << "  mov eax, 60\n";
+    if (choices[0] == "linux") {
+      os << "  mov eax, 60\n";
+    } else {
+      os << "  mov eax, 33554433\n";
+    }
     os << "  syscall\n";
     std::ofstream oss(argv[1] + ".asm");
     oss << os.str();
@@ -260,11 +324,17 @@ int main(int argc, char **_argv) {
   if (!command_exists("nasm")) {
     std::cerr << "warning: nasm is not installed, stopping at the assembly emission step\n";
   } else {
-    std::system(("nasm -f elf64 " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
+    std::system(("nasm -f " + nasm_platform(choices[0]) + " " + argv[1] + ".asm -o " + argv[1] + ".o").c_str());
     if (!command_exists("ld")) {
       std::cerr << "warning: ld is not installed, stopping at the object linking step\n";
     } else {
-      std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+      if (choices[0] == "linux") {
+        std::system(("ld " + argv[1] + ".o -o a.out").c_str());
+      } else if (choices[0] == "macos") {
+        std::system(("ld -platform_version macos 13.0 13.0 -e _start " + argv[1] + ".o -o a.out 2>/dev/null").c_str());
+      } else {
+        assert(false);
+      }
     }
   }
 }
