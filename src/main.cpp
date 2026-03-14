@@ -20,7 +20,7 @@ std::string platform() {
 #ifdef __APPLE__
   return "macos";
 #elif _WIN32
-  return "windows"
+  return "windows";
 #elif __linux__
   return "linux";
 #endif
